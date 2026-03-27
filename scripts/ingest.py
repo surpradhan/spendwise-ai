@@ -12,6 +12,7 @@ Canonical schema:
 
 from __future__ import annotations
 
+import difflib
 import re
 import sys
 from pathlib import Path
@@ -72,6 +73,63 @@ def load_file(path: str | Path) -> pd.DataFrame:
 
 CANONICAL_COLUMNS = ("Date", "Description", "Amount")
 
+_COLUMN_ALIASES: dict[str, list[str]] = {
+    "Date": [
+        "date",
+        "post date",
+        "posted date",
+        "posting date",
+        "transaction date",
+        "trans date",
+        "trans. date",
+        "value date",
+        "settlement date",
+        "effective date",
+        "booking date",
+        "trade date",
+    ],
+    "Description": [
+        "description",
+        "memo",
+        "narrative",
+        "details",
+        "transaction description",
+        "transaction details",
+        "merchant",
+        "merchant name",
+        "payee",
+        "payee name",
+        "reference",
+        "remarks",
+        "particulars",
+        "narration",
+        "note",
+        "notes",
+    ],
+    "Amount": [
+        "amount",
+        "debit/credit",
+        "debit / credit",
+        "credit/debit",
+        "transaction amount",
+        "net amount",
+        "value",
+        "sum",
+        "charge",
+        "payment",
+        "withdrawal/deposit",
+        "deposit/withdrawal",
+        "dr/cr",
+        "cr/dr",
+        "gbp amount",
+        "usd amount",
+        "eur amount",
+        "inr amount",
+        "cad amount",
+        "aud amount",
+    ],
+}
+
 
 def validate_columns(df: pd.DataFrame) -> list[str]:
     """Return the list of canonical columns missing from *df*.
@@ -86,6 +144,66 @@ def validate_columns(df: pd.DataFrame) -> list[str]:
         Missing canonical column names.  Empty list → all present.
     """
     return [col for col in CANONICAL_COLUMNS if col not in df.columns]
+
+
+def fuzzy_match_columns(
+    missing: list[str],
+    available: list[str],
+) -> dict[str, str]:
+    """Auto-map missing canonical column names to available DataFrame columns.
+
+    Uses a two-stage strategy:
+
+    1. **Alias lookup** — checks *available* against a curated list of known
+       bank-export synonyms (``_COLUMN_ALIASES``).  Comparison is
+       case-insensitive and whitespace-stripped.
+    2. **difflib fallback** — if no alias matches, uses
+       ``difflib.get_close_matches`` with a cutoff of 0.8 to find a
+       high-confidence fuzzy match against the remaining unmapped columns.
+
+    Only unambiguous mappings are returned.  If a canonical column cannot be
+    confidently resolved, it is omitted so the caller can escalate to
+    interactive prompting.
+
+    Parameters
+    ----------
+    missing : list[str]
+        Canonical column names absent from the DataFrame
+        (e.g. ``["Date", "Description"]``).
+    available : list[str]
+        Column names actually present in the DataFrame.
+
+    Returns
+    -------
+    dict[str, str]
+        ``{available_col: canonical_col}`` for every confident auto-mapping.
+        Suitable for passing directly to ``DataFrame.rename(columns=...)``.
+    """
+    rename_map: dict[str, str] = {}
+    claimed: set[str] = set()
+    available_lower = {col.strip().lower(): col for col in available}
+
+    for canonical in missing:
+        # Stage 1: alias lookup
+        matched: str | None = None
+        for alias in _COLUMN_ALIASES.get(canonical, []):
+            original = available_lower.get(alias)
+            if original is not None and original not in claimed:
+                matched = original
+                break
+
+        if matched is None:
+            # Stage 2: difflib fallback
+            unclaimed = [c for c in available if c not in claimed]
+            candidates = difflib.get_close_matches(canonical, unclaimed, n=1, cutoff=0.8)
+            if candidates:
+                matched = candidates[0]
+
+        if matched is not None:
+            rename_map[matched] = canonical
+            claimed.add(matched)
+
+    return rename_map
 
 
 def prompt_column_mapping(df: pd.DataFrame, missing: list[str]) -> pd.DataFrame:
@@ -347,13 +465,23 @@ def ingest(path: str | Path, interactive: bool = True) -> pd.DataFrame:
     missing = validate_columns(df)
 
     if missing:
-        if interactive:
-            df = prompt_column_mapping(df, missing)
-        else:
-            raise ValueError(
-                f"Missing required columns: {missing}. "
-                f"Available columns: {list(df.columns)}"
-            )
+        # Auto-map via alias / fuzzy matching
+        auto_map = fuzzy_match_columns(missing, list(df.columns))
+        if auto_map:
+            for src, canonical in auto_map.items():
+                print(f"  ↳ Auto-mapped '{src}' → '{canonical}'")
+            df = df.rename(columns=auto_map)
+            missing = validate_columns(df)
+
+        if missing:
+            if interactive:
+                df = prompt_column_mapping(df, missing)
+            else:
+                raise ValueError(
+                    f"Missing required columns: {missing}. "
+                    f"Could not auto-map from available columns: {list(df.columns)}. "
+                    "Re-run without --no-feedback to map interactively."
+                )
 
     df = remove_duplicates(df)
     df = normalize_dates(df)
