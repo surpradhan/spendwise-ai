@@ -114,8 +114,6 @@ _COLUMN_ALIASES: dict[str, list[str]] = {
         "transaction amount",
         "net amount",
         "value",
-        "sum",
-        "charge",
         "payment",
         "withdrawal/deposit",
         "deposit/withdrawal",
@@ -193,11 +191,13 @@ def fuzzy_match_columns(
                 break
 
         if matched is None:
-            # Stage 2: difflib fallback
+            # Stage 2: difflib fallback (case-insensitive, consistent with Stage 1)
             unclaimed = [c for c in available if c not in claimed]
-            candidates = difflib.get_close_matches(canonical, unclaimed, n=1, cutoff=0.8)
+            unclaimed_lower = [c.lower() for c in unclaimed]
+            candidates = difflib.get_close_matches(canonical.lower(), unclaimed_lower, n=1, cutoff=0.8)
             if candidates:
-                matched = candidates[0]
+                # Map back to the original-case column name
+                matched = unclaimed[unclaimed_lower.index(candidates[0])]
 
         if matched is not None:
             rename_map[matched] = canonical

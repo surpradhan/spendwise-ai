@@ -118,6 +118,20 @@ def test_ingest_raises_on_unresolvable_no_feedback(tmp_path):
         ingest(csv, interactive=False)
 
 
+def test_fuzzy_match_currency_amount_aliases():
+    # Currency-prefixed amount columns (Barclays, HSBC, HDFC style)
+    assert fuzzy_match_columns(["Amount"], ["GBP Amount"]) == {"GBP Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["USD Amount"]) == {"USD Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["EUR Amount"]) == {"EUR Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["INR Amount"]) == {"INR Amount": "Amount"}
+
+
+def test_fuzzy_match_difflib_case_insensitive():
+    # Stage 2 should match regardless of case in source column
+    result = fuzzy_match_columns(["Date"], ["DATES"])
+    assert result == {"DATES": "Date"}
+
+
 # ---------------------------------------------------------------------------
 # remove_duplicates
 # ---------------------------------------------------------------------------
