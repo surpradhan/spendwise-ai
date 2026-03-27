@@ -8,6 +8,8 @@ import pytest
 
 from scripts.ingest import (
     CANONICAL_COLUMNS,
+    fuzzy_match_columns,
+    ingest,
     mask_card_numbers,
     normalize_amounts,
     normalize_dates,
@@ -34,6 +36,100 @@ def test_validate_columns_missing_all():
     df = pd.DataFrame(columns=["foo", "bar"])
     missing = validate_columns(df)
     assert set(missing) == set(CANONICAL_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# fuzzy_match_columns
+# ---------------------------------------------------------------------------
+
+def test_fuzzy_match_alias_lowercase():
+    result = fuzzy_match_columns(
+        ["Date", "Description", "Amount"],
+        ["post date", "memo", "debit/credit"],
+    )
+    assert result == {"post date": "Date", "memo": "Description", "debit/credit": "Amount"}
+
+
+def test_fuzzy_match_alias_mixed_case():
+    result = fuzzy_match_columns(
+        ["Date", "Description", "Amount"],
+        ["Post Date", "Memo", "Debit/Credit"],
+    )
+    assert result == {"Post Date": "Date", "Memo": "Description", "Debit/Credit": "Amount"}
+
+
+def test_fuzzy_match_alias_partial_missing():
+    result = fuzzy_match_columns(["Description"], ["Date", "Amount", "Narration"])
+    assert result == {"Narration": "Description"}
+
+
+def test_fuzzy_match_difflib_fallback():
+    # Pluralised names not in aliases — should match via difflib (score > 0.8)
+    result = fuzzy_match_columns(
+        ["Date", "Description", "Amount"],
+        ["Dates", "Descriptions", "Amounts"],
+    )
+    assert result == {"Dates": "Date", "Descriptions": "Description", "Amounts": "Amount"}
+
+
+def test_fuzzy_match_no_confident_match_returns_empty():
+    result = fuzzy_match_columns(
+        ["Date", "Description", "Amount"],
+        ["col_a", "col_b", "col_c"],
+    )
+    assert result == {}
+
+
+def test_fuzzy_match_does_not_double_map():
+    # Only one available column — should map to Date only, not also Description
+    result = fuzzy_match_columns(["Date", "Description"], ["Transaction Date"])
+    assert len(result) == 1
+    assert result == {"Transaction Date": "Date"}
+
+
+def test_fuzzy_match_returns_rename_compatible_dict():
+    df = pd.DataFrame(columns=["Post Date", "Memo", "Amount"])
+    rename_map = fuzzy_match_columns(["Date", "Description"], list(df.columns))
+    df2 = df.rename(columns=rename_map)
+    assert "Date" in df2.columns
+    assert "Description" in df2.columns
+
+
+def test_fuzzy_match_empty_available():
+    assert fuzzy_match_columns(["Date", "Description", "Amount"], []) == {}
+
+
+def test_fuzzy_match_empty_missing():
+    assert fuzzy_match_columns([], ["Post Date", "Memo", "Amount"]) == {}
+
+
+def test_ingest_auto_maps_aliases(tmp_path):
+    csv = tmp_path / "bank.csv"
+    csv.write_text("Post Date,Memo,Debit/Credit\n2026-01-15,STARBUCKS,-4.50\n2026-01-16,AMAZON,-32.99\n")
+    df = ingest(csv, interactive=False)
+    assert list(df.columns) == ["Date", "Description", "Amount"]
+    assert len(df) == 2
+
+
+def test_ingest_raises_on_unresolvable_no_feedback(tmp_path):
+    csv = tmp_path / "bad.csv"
+    csv.write_text("foo,bar,baz\n1,2,3\n")
+    with pytest.raises(ValueError, match="Missing required columns"):
+        ingest(csv, interactive=False)
+
+
+def test_fuzzy_match_currency_amount_aliases():
+    # Currency-prefixed amount columns (Barclays, HSBC, HDFC style)
+    assert fuzzy_match_columns(["Amount"], ["GBP Amount"]) == {"GBP Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["USD Amount"]) == {"USD Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["EUR Amount"]) == {"EUR Amount": "Amount"}
+    assert fuzzy_match_columns(["Amount"], ["INR Amount"]) == {"INR Amount": "Amount"}
+
+
+def test_fuzzy_match_difflib_case_insensitive():
+    # Stage 2 should match regardless of case in source column
+    result = fuzzy_match_columns(["Date"], ["DATES"])
+    assert result == {"DATES": "Date"}
 
 
 # ---------------------------------------------------------------------------
