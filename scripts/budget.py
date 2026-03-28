@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
+
 
 # ---------------------------------------------------------------------------
 # Load / Save
@@ -128,8 +130,6 @@ def evaluate_budgets(
         return []
 
     # Compute the number of distinct YYYY-MM periods covered
-    import pandas as pd
-
     start = pd.Period(summary["period_start"][:7], freq="M")
     end   = pd.Period(summary["period_end"][:7],   freq="M")
     num_months = max(1, (end - start).n + 1)
