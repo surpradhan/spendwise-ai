@@ -115,7 +115,7 @@ def train_model(X: pd.Series, y: pd.Series) -> Pipeline:
 
     if n_classes < 2:
         raise RuntimeError(
-            f"Only {n_classes} distinct category found in training data. "
+            f"Only {n_classes} distinct categories found in training data. "
             "At least 2 distinct categories are required to train the model."
         )
 
@@ -216,7 +216,8 @@ def predict_with_confidence(
 
     proba = model.predict_proba(descriptions)          # shape (n, n_classes)
     max_proba = proba.max(axis=1)                      # confidence per row
-    predicted = model.predict(descriptions)            # label array
+    best_idx = proba.argmax(axis=1)                    # index of top class
+    predicted = model.classes_[best_idx]               # derive labels (single pass)
 
     labels = pd.Series(
         [label if conf >= threshold else "Uncategorized"

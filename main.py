@@ -165,6 +165,9 @@ def run(args: argparse.Namespace) -> None:
     print("[Classifier]")
     keywords = load_keywords(keywords_path)
 
+    # Load model once — used for advisory checks and passed into classify_all_v2
+    _model = load_model(_MODEL_DIR)
+
     # Advisory: warn if saved model is older than newest processed CSV
     if is_model_stale(_MODEL_DIR, _PROCESSED_DIR):
         print(
@@ -173,7 +176,7 @@ def run(args: argparse.Namespace) -> None:
         )
 
     # Cold-start info when no model exists
-    if load_model(_MODEL_DIR) is None:
+    if _model is None:
         print("  ML classifier not yet trained — using keyword matching only.")
 
     df = classify_all_v2(df, keywords, model_path=_MODEL_DIR, threshold=threshold)
