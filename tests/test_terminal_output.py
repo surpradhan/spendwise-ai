@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import pytest
 
-from scripts.terminal_output import build_summary, print_recurring, to_json
+from scripts.terminal_output import build_summary, print_budget_alerts, print_recurring, to_json
 
 
 def _categorized_df():
@@ -188,3 +188,63 @@ def test_print_recurring_masks_card_numbers(capsys):
     captured = capsys.readouterr()
     assert "4111111111111111" not in captured.out
     assert "****1111" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# print_budget_alerts
+# ---------------------------------------------------------------------------
+
+def test_print_budget_alerts_no_output_when_empty(capsys):
+    """print_budget_alerts with empty list prints nothing."""
+    print_budget_alerts([])
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_print_budget_alerts_shows_exceeded_category(capsys):
+    """EXCEEDED status alert includes the error symbol."""
+    alerts = [{
+        "category":    "Groceries",
+        "budget":      400.0,
+        "monthly_avg": 450.0,
+        "pct_used":    112.5,
+        "status":      "EXCEEDED",
+        "num_months":  1,
+    }]
+    print_budget_alerts(alerts)
+    captured = capsys.readouterr()
+    assert "Groceries" in captured.out
+    assert "✗" in captured.out
+
+
+def test_print_budget_alerts_shows_approaching_category(capsys):
+    """APPROACHING status alert includes the warning symbol."""
+    alerts = [{
+        "category":    "Transport",
+        "budget":      100.0,
+        "monthly_avg": 85.0,
+        "pct_used":    85.0,
+        "status":      "APPROACHING",
+        "num_months":  1,
+    }]
+    print_budget_alerts(alerts)
+    captured = capsys.readouterr()
+    assert "Transport" in captured.out
+    assert "⚠" in captured.out
+
+
+def test_print_budget_alerts_shows_ok_category_without_warning_symbol(capsys):
+    """OK status alert does not include a warning or error symbol."""
+    alerts = [{
+        "category":    "Entertainment",
+        "budget":      50.0,
+        "monthly_avg": 20.0,
+        "pct_used":    40.0,
+        "status":      "OK",
+        "num_months":  1,
+    }]
+    print_budget_alerts(alerts)
+    captured = capsys.readouterr()
+    assert "Entertainment" in captured.out
+    assert "✗" not in captured.out
+    assert "⚠" not in captured.out

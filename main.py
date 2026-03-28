@@ -50,8 +50,9 @@ from scripts.ml_classifier import (
     save_model,
     train_model,
 )
-from scripts.terminal_output import build_summary, print_summary, print_recurring, to_json
+from scripts.terminal_output import build_summary, print_summary, print_recurring, to_json, print_budget_alerts
 from scripts.recurring import detect_recurring
+from scripts.budget import load_budgets, save_budgets, evaluate_budgets
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +64,7 @@ _EXPORTS_DIR    = _REPO_ROOT / "exports"
 _ML_CONFIG_PATH = _REPO_ROOT / "config" / "ml_config.json"
 _MODEL_DIR      = _REPO_ROOT / "models"
 _PROCESSED_DIR  = _REPO_ROOT / "data" / "processed"
+_BUDGETS_PATH   = _REPO_ROOT / "config" / "budgets.json"
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +143,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "after writing the categorised output for this run."
         ),
     )
+    parser.add_argument(
+        "--budgets",
+        default=str(_BUDGETS_PATH),
+        metavar="PATH",
+        help=f"Path to budgets.json (default: {_BUDGETS_PATH})",
+    )
+    parser.add_argument(
+        "--set-budget",
+        nargs="+",
+        metavar="CATEGORY:AMOUNT",
+        help=(
+            "Set one or more budget targets, e.g. "
+            "--set-budget 'Groceries:400' 'Transport:100'"
+        ),
+    )
 
     return parser
 
@@ -154,6 +171,7 @@ def run(args: argparse.Namespace) -> None:
 
     input_path    = Path(args.file)
     keywords_path = Path(args.keywords)
+    budgets_path  = Path(args.budgets)
     interactive   = not args.no_feedback
     ml_config     = _load_ml_config()
     threshold     = ml_config.get("confidence_threshold", 0.70)
@@ -212,33 +230,67 @@ def run(args: argparse.Namespace) -> None:
         except RuntimeError as exc:
             print(f"  ✗ ML training skipped: {exc}")
 
-    # ── 6. Build summary + detect recurring ───────────────────────────────
+    # ── 6. Load budgets (and apply --set-budget overrides) ────────────────
+    budgets = load_budgets(budgets_path)
+
+    if args.set_budget:
+        overrides: dict[str, float] = {}
+        for pair in args.set_budget:
+            if ":" not in pair:
+                raise ValueError(
+                    f"Invalid --set-budget value {pair!r}. "
+                    "Expected format: CATEGORY:AMOUNT (e.g. Groceries:400)"
+                )
+            category, _, raw_amount = pair.partition(":")
+            try:
+                amount = float(raw_amount)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid amount {raw_amount!r} in --set-budget '{pair}'. "
+                    "Amount must be a positive number."
+                )
+            if amount <= 0:
+                raise ValueError(
+                    f"Budget amount for '{category}' must be positive, got {amount}."
+                )
+            overrides[category] = amount
+        budgets = {**budgets, **overrides}
+        save_budgets(budgets, budgets_path)
+        print(f"  ✓ Budgets updated → '{budgets_path}'")
+
+    # ── 7. Build summary + detect recurring ───────────────────────────────
     summary      = build_summary(df)
     recurring_df = detect_recurring(df)
 
-    # ── 7. Output ─────────────────────────────────────────────────────────
+    # ── 8. Output ─────────────────────────────────────────────────────────
+    budget_alerts = evaluate_budgets(summary, budgets)
+
     if args.json_stdout:
         payload = json.loads(to_json(summary))
         payload["recurring_transactions"] = recurring_df.to_dict(orient="records")
+        payload["budget_alerts"] = budget_alerts
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
         print_recurring(recurring_df)
+        print_budget_alerts(budget_alerts)
 
     if args.output_json:
         out = Path(args.output_json)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(to_json(summary), encoding="utf-8")
+        payload = json.loads(to_json(summary))
+        payload["budget_alerts"] = budget_alerts
+        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  ✓ JSON summary saved → '{out}'")
 
     # ── 8. Dashboard / PDF ────────────────────────────────────────────────
     if args.dashboard:
         from scripts.dashboard import export_dashboard
-        export_dashboard(df, Path(args.exports_dir))
+        export_dashboard(df, Path(args.exports_dir), budgets=budgets)
 
     if args.pdf:
         from scripts.dashboard import export_pdf
-        export_pdf(df, Path(args.exports_dir))
+        export_pdf(df, Path(args.exports_dir), budgets=budgets)
 
 
 # ---------------------------------------------------------------------------

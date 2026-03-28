@@ -1,4 +1,4 @@
-"""Tests for scripts/dashboard.py — PDF export."""
+"""Tests for scripts/dashboard.py — PDF export and budget chart."""
 from __future__ import annotations
 
 import io
@@ -8,10 +8,11 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+import plotly.graph_objects as go
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.dashboard import export_pdf
+from scripts.dashboard import build_budget_chart, build_dashboard, export_pdf
 
 
 # ---------------------------------------------------------------------------
@@ -133,3 +134,43 @@ def test_export_pdf_raises_when_kaleido_missing(classified_df, tmp_path):
     with patch("plotly.io.to_image", side_effect=kaleido_err):
         with pytest.raises(RuntimeError, match="kaleido"):
             export_pdf(classified_df, tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# build_budget_chart
+# ---------------------------------------------------------------------------
+
+def test_build_budget_chart_returns_figure(classified_df):
+    """build_budget_chart returns a go.Figure with budgets provided."""
+    budgets = {"Groceries": 200.0, "Entertainment": 50.0}
+    fig = build_budget_chart(classified_df, budgets)
+    assert isinstance(fig, go.Figure)
+
+
+def test_build_budget_chart_empty_budgets_returns_figure(classified_df):
+    """build_budget_chart returns a go.Figure with annotation when budgets empty."""
+    fig = build_budget_chart(classified_df, {})
+    assert isinstance(fig, go.Figure)
+    # Should contain the "No budgets configured" annotation
+    annotations = fig.layout.annotations
+    assert any("No budgets configured" in (a.text or "") for a in annotations)
+
+
+# ---------------------------------------------------------------------------
+# build_dashboard — budget card integration
+# ---------------------------------------------------------------------------
+
+def test_build_dashboard_accepts_budgets_param(classified_df):
+    """build_dashboard runs without error when budgets is provided."""
+    budgets = {"Groceries": 200.0, "Entertainment": 50.0}
+    html = build_dashboard(classified_df, budgets=budgets)
+    assert isinstance(html, str)
+    assert "<!DOCTYPE html>" in html
+
+
+def test_build_dashboard_no_budget_card_when_budgets_empty(classified_df):
+    """build_dashboard without budgets omits the budget chart card."""
+    html_no_budget = build_dashboard(classified_df, budgets=None)
+    html_with_budget = build_dashboard(classified_df, budgets={"Groceries": 200.0})
+    # Dashboard with budgets should be larger (extra card HTML)
+    assert len(html_with_budget) > len(html_no_budget)
