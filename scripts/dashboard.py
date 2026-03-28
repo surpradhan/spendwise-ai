@@ -395,11 +395,130 @@ def build_recurring_table(df: pd.DataFrame) -> go.Figure:
 
 
 # ---------------------------------------------------------------------------
+# Budget chart
+# ---------------------------------------------------------------------------
+
+def build_budget_chart(df: pd.DataFrame, budgets: dict[str, float]) -> go.Figure:
+    """Horizontal grouped bar chart: actual monthly average vs budget target.
+
+    Bars are coloured by status:
+    * Red  (#F72585) — actual exceeds budget
+    * Amber (#F3722C) — actual is approaching budget (≥ 80 %)
+    * Green (#90BE6D) — on track
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must have Date, Amount, Category columns.
+    budgets : dict[str, float]
+        Mapping of category → monthly budget.  Only categories present in
+        this dict are included.  When empty, returns a figure with a
+        "No budgets configured" annotation.
+
+    Returns
+    -------
+    go.Figure
+    """
+    if not budgets:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No budgets configured",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False,
+            font=dict(size=16, color="#888"),
+        )
+        fig.update_layout(
+            title=dict(text="Budget Targets vs Actual Spending", font=dict(size=16)),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            margin=dict(t=60, b=20, l=20, r=20),
+        )
+        return fig
+
+    # Compute monthly averages per category from the DataFrame
+    tmp = df.copy()
+    tmp["Month"] = pd.to_datetime(tmp["Date"]).dt.to_period("M").astype(str)
+    num_months = tmp["Month"].nunique()
+    num_months = max(num_months, 1)
+
+    expense_df = tmp[tmp["Amount"] < 0].copy()
+    expense_df["AbsAmount"] = expense_df["Amount"].abs()
+    cat_totals = (
+        expense_df.groupby("Category")["AbsAmount"]
+        .sum()
+        .to_dict()
+    )
+
+    categories = sorted(budgets.keys())
+    monthly_avgs = [cat_totals.get(cat, 0.0) / num_months for cat in categories]
+    budget_vals  = [budgets[cat] for cat in categories]
+
+    # Determine per-category status colours
+    colours = []
+    for avg, bud in zip(monthly_avgs, budget_vals):
+        pct = avg / bud
+        if pct >= 1.0:
+            colours.append("#F72585")   # exceeded — red
+        elif pct >= 0.80:
+            colours.append("#F3722C")   # approaching — amber
+        else:
+            colours.append("#90BE6D")   # on track — green
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            name="Actual (monthly avg)",
+            x=monthly_avgs,
+            y=categories,
+            orientation="h",
+            marker_color=colours,
+            hovertemplate="<b>%{y}</b><br>Actual: $%{x:,.2f}<extra></extra>",
+            text=[f"${v:,.2f}" for v in monthly_avgs],
+            textposition="outside",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            name="Budget target",
+            x=budget_vals,
+            y=categories,
+            orientation="h",
+            marker=dict(color="rgba(0,0,0,0)", line=dict(color="#4361EE", width=2)),
+            hovertemplate="<b>%{y}</b><br>Budget: $%{x:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title=dict(text="Budget Targets vs Actual Spending", font=dict(size=16)),
+        barmode="overlay",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(title="Amount ($)", showgrid=True, gridcolor="#f0f0f0"),
+        yaxis=dict(showgrid=False),
+        margin=dict(t=80, b=40, l=160, r=80),
+        plot_bgcolor="white",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Dashboard assembly & export
 # ---------------------------------------------------------------------------
 
-def build_dashboard(df: pd.DataFrame) -> str:
-    """Compose all 6 views into a single self-contained HTML string.
+def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
+    """Compose all chart views into a single self-contained HTML string.
+
+    When *budgets* is provided and non-empty a 7th card is added showing the
+    budget targets vs actual spending chart.  When absent or empty the layout
+    is unchanged (backward compatible).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must be a fully ingested + classified DataFrame.
+    budgets : dict | None, optional
+        Mapping of category → monthly budget from
+        :func:`scripts.budget.load_budgets`.  Pass ``None`` or ``{}`` to
+        omit the budget card.
 
     Returns
     -------
@@ -429,6 +548,12 @@ def build_dashboard(df: pd.DataFrame) -> str:
     grouped_div   = _div(grouped)
     table_div     = _div(table)
     recurring_div = _div(recurring)
+
+    # Optional budget card (7th card) — only when budgets provided and non-empty
+    budget_card_html = ""
+    if budgets:
+        budget_div = _div(build_budget_chart(df, budgets))
+        budget_card_html = f'    <div class="card full-width">{budget_div}</div>'
 
     # Inline Plotly.js for full offline support
     plotly_js = pio.to_html(
@@ -517,6 +642,7 @@ def build_dashboard(df: pd.DataFrame) -> str:
     <div class="card">{grouped_div}</div>
     <div class="card full-width">{table_div}</div>
     <div class="card full-width">{recurring_div}</div>
+{budget_card_html}
   </div>
 
   <footer>Generated by SpendWise AI · All data processed locally · No data leaves your machine</footer>
@@ -525,13 +651,19 @@ def build_dashboard(df: pd.DataFrame) -> str:
     return html
 
 
-def export_pdf(df: pd.DataFrame, output_dir: str | Path) -> Path:
+def export_pdf(
+    df: pd.DataFrame,
+    output_dir: str | Path,
+    budgets: dict | None = None,
+) -> Path:
     """Build and write a multi-page PDF dashboard to *output_dir*.
 
     Each Plotly chart is rendered to PNG via kaleido and assembled into a
     single PDF with reportlab.  Page 1 is a summary cover with key stats
     and a category breakdown table; pages 2–5 are the four main charts;
     optional final pages cover uncategorized and recurring transactions.
+    When *budgets* is provided and non-empty, a budget targets chart page
+    is appended.
 
     File is named: dashboard_{start}_to_{end}.pdf
 
@@ -541,6 +673,9 @@ def export_pdf(df: pd.DataFrame, output_dir: str | Path) -> Path:
         Must be a fully ingested + classified DataFrame (Date, Description,
         Amount, Category columns).
     output_dir : str | Path
+    budgets : dict | None, optional
+        Mapping of category → monthly budget.  Adds a budget chart page
+        when provided and non-empty.
 
     Returns
     -------
@@ -818,6 +953,18 @@ def export_pdf(df: pd.DataFrame, output_dir: str | Path) -> Path:
         story.append(Spacer(1, 0.4 * cm))
         story.append(Paragraph(_FOOTER_TEXT, footer_style))
 
+    # Optional page — budget targets chart
+    if budgets:
+        story.append(PageBreak())
+        story.append(Paragraph("Budget Targets vs Actual Spending", section_style))
+        story.append(Spacer(1, 0.2 * cm))
+        budget_fig = build_budget_chart(df, budgets)
+        png_bytes = _to_png(budget_fig, width=IMG_W_PX, height=IMG_H_PX)
+        img = Image(_io.BytesIO(png_bytes), width=img_pdf_w, height=img_pdf_h)
+        story.append(img)
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph(_FOOTER_TEXT, footer_style))
+
     doc.build(story)
 
     size_kb = out_path.stat().st_size // 1024
@@ -825,7 +972,11 @@ def export_pdf(df: pd.DataFrame, output_dir: str | Path) -> Path:
     return out_path
 
 
-def export_dashboard(df: pd.DataFrame, output_dir: str | Path) -> Path:
+def export_dashboard(
+    df: pd.DataFrame,
+    output_dir: str | Path,
+    budgets: dict | None = None,
+) -> Path:
     """Build and write the HTML dashboard to *output_dir*.
 
     File is named: dashboard_{start}_to_{end}.html
@@ -834,6 +985,9 @@ def export_dashboard(df: pd.DataFrame, output_dir: str | Path) -> Path:
     ----------
     df : pd.DataFrame
     output_dir : str | Path
+    budgets : dict | None, optional
+        Mapping of category → monthly budget.  When provided and non-empty,
+        a 7th budget-targets card is added to the dashboard.
 
     Returns
     -------
@@ -850,7 +1004,7 @@ def export_dashboard(df: pd.DataFrame, output_dir: str | Path) -> Path:
     out_path = output_dir / filename
 
     print("\n[Dashboard] Building interactive HTML dashboard…")
-    html = build_dashboard(df)
+    html = build_dashboard(df, budgets=budgets)
 
     out_path.write_text(html, encoding="utf-8")
     size_kb = out_path.stat().st_size // 1024

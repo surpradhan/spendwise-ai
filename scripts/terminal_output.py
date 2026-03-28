@@ -207,7 +207,61 @@ def print_recurring(recurring_df: pd.DataFrame) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. JSON serialisation
+# 4. Budget alerts printer
+# ---------------------------------------------------------------------------
+
+def print_budget_alerts(alerts: list[dict]) -> None:
+    """Print monthly budget alert summary to stdout.
+
+    No-op when *alerts* is empty.
+
+    Parameters
+    ----------
+    alerts : list[dict]
+        As returned by :func:`scripts.budget.evaluate_budgets`.
+        Each dict must have keys: category, budget, monthly_avg, pct_used,
+        status, num_months.
+    """
+    if not alerts:
+        return
+
+    W    = 54
+    sep  = "═" * W
+    thin = "─" * W
+
+    print(f"\n{sep}")
+    print(" SpendWise AI — Budget Alerts")
+    print(sep)
+
+    col_w = max((len(a["category"]) for a in alerts), default=12)
+
+    for alert in alerts:
+        cat        = alert["category"]
+        monthly    = alert["monthly_avg"]
+        budget     = alert["budget"]
+        pct        = alert["pct_used"]
+        status     = alert["status"]
+        bar_frac   = min(pct / 100, 1.0)
+        bar        = _bar(bar_frac, width=16)
+
+        match status:
+            case "EXCEEDED":
+                symbol = "  ✗"
+            case "APPROACHING":
+                symbol = "  ⚠"
+            case _:
+                symbol = ""
+
+        print(
+            f"  {cat:<{col_w}}  ${monthly:>8,.2f} / ${budget:>8,.2f}"
+            f"   {bar}  {pct:5.1f}%{symbol}"
+        )
+
+    print(f"{sep}\n")
+
+
+# ---------------------------------------------------------------------------
+# 5. JSON serialisation
 # ---------------------------------------------------------------------------
 
 def to_json(summary: dict) -> str:
