@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import pytest
 
-from scripts.terminal_output import build_summary, to_json
+from scripts.terminal_output import build_summary, print_recurring, to_json
 
 
 def _categorized_df():
@@ -121,3 +121,70 @@ def test_to_json_returns_valid_json():
 def test_to_json_returns_string():
     summary = build_summary(_categorized_df())
     assert isinstance(to_json(summary), str)
+
+
+# ---------------------------------------------------------------------------
+# print_recurring
+# ---------------------------------------------------------------------------
+
+def _recurring_df() -> pd.DataFrame:
+    return pd.DataFrame({
+        "Description": ["NETFLIX", "SPOTIFY"],
+        "Category":    ["Entertainment", "Entertainment"],
+        "Avg_Amount":  [-15.49, -9.99],
+        "Median_Days": [30.0, 30.0],
+        "Frequency":   ["Monthly", "Monthly"],
+        "Occurrences": [3, 3],
+        "First_Date":  ["2026-01-01", "2026-01-01"],
+        "Last_Date":   ["2026-03-01", "2026-03-01"],
+    })
+
+
+def test_print_recurring_empty_produces_no_output(capsys):
+    """print_recurring with an empty DataFrame prints nothing."""
+    print_recurring(pd.DataFrame(columns=[
+        "Description", "Category", "Avg_Amount", "Median_Days",
+        "Frequency", "Occurrences", "First_Date", "Last_Date",
+    ]))
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_print_recurring_shows_description(capsys):
+    """Each description appears in the output."""
+    print_recurring(_recurring_df())
+    captured = capsys.readouterr()
+    assert "NETFLIX" in captured.out
+    assert "SPOTIFY" in captured.out
+
+
+def test_print_recurring_shows_frequency(capsys):
+    """Frequency label appears in the output."""
+    print_recurring(_recurring_df())
+    captured = capsys.readouterr()
+    assert "Monthly" in captured.out
+
+
+def test_print_recurring_shows_amount(capsys):
+    """Formatted per-cycle amount appears in the output."""
+    print_recurring(_recurring_df())
+    captured = capsys.readouterr()
+    assert "15.49" in captured.out
+
+
+def test_print_recurring_masks_card_numbers(capsys):
+    """Descriptions containing card-like digit sequences are masked before printing."""
+    df = pd.DataFrame({
+        "Description": ["CHARGE 4111111111111111"],
+        "Category":    ["Shopping"],
+        "Avg_Amount":  [-50.00],
+        "Median_Days": [30.0],
+        "Frequency":   ["Monthly"],
+        "Occurrences": [2],
+        "First_Date":  ["2026-01-01"],
+        "Last_Date":   ["2026-02-01"],
+    })
+    print_recurring(df)
+    captured = capsys.readouterr()
+    assert "4111111111111111" not in captured.out
+    assert "****1111" in captured.out

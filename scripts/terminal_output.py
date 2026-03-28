@@ -165,7 +165,49 @@ def print_summary(summary: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. JSON serialisation
+# 3. Recurring transaction printer
+# ---------------------------------------------------------------------------
+
+def print_recurring(recurring_df: pd.DataFrame) -> None:
+    """Print a recurring-transaction summary to stdout.
+
+    Parameters
+    ----------
+    recurring_df : pd.DataFrame
+        As returned by :func:`scripts.recurring.detect_recurring`.
+        Expected columns: Description, Category, Avg_Amount, Frequency,
+        Occurrences, Last_Date.
+    """
+    if recurring_df.empty:
+        return
+
+    W    = 54
+    thin = "─" * W
+
+    print(f"\n {'Recurring Transactions Detected'}")
+    print(f" {thin}")
+
+    desc_w = min(
+        max((len(str(r)) for r in recurring_df["Description"]), default=12),
+        36,
+    )
+
+    for _, row in recurring_df.iterrows():
+        desc   = _mask_residual(str(row["Description"]))[:desc_w]
+        amount = abs(float(row["Avg_Amount"]))
+        freq   = row["Frequency"]
+        occ    = int(row["Occurrences"])
+        last   = row["Last_Date"]
+        print(
+            f"  {desc:<{desc_w}}  ${amount:>8,.2f}/cycle"
+            f"  {freq:<10}  {occ}× (last: {last})"
+        )
+
+    print()
+
+
+# ---------------------------------------------------------------------------
+# 4. JSON serialisation
 # ---------------------------------------------------------------------------
 
 def to_json(summary: dict) -> str:

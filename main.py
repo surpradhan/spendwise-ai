@@ -22,6 +22,7 @@ python main.py --help
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -38,7 +39,8 @@ from scripts.classifier import (
     save_keywords,
     write_processed_csv,
 )
-from scripts.terminal_output import build_summary, print_summary, to_json
+from scripts.terminal_output import build_summary, print_summary, print_recurring, to_json
+from scripts.recurring import detect_recurring
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +79,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dashboard",
         action="store_true",
         help="Generate a self-contained interactive HTML dashboard",
+    )
+    parser.add_argument(
+        "--pdf",
+        action="store_true",
+        help="Generate a multi-page PDF dashboard (requires kaleido + reportlab)",
     )
     parser.add_argument(
         "--json",
@@ -133,14 +140,18 @@ def run(args: argparse.Namespace) -> None:
     # ── 4. Persist categorised CSV ────────────────────────────────────────
     write_processed_csv(df, input_path)
 
-    # ── 5. Build summary ──────────────────────────────────────────────────
-    summary = build_summary(df)
+    # ── 5. Build summary + detect recurring ───────────────────────────────
+    summary      = build_summary(df)
+    recurring_df = detect_recurring(df)
 
     # ── 6. Output ─────────────────────────────────────────────────────────
     if args.json_stdout:
-        print(to_json(summary))
+        payload = json.loads(to_json(summary))
+        payload["recurring_transactions"] = recurring_df.to_dict(orient="records")
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
+        print_recurring(recurring_df)
 
     if args.output_json:
         out = Path(args.output_json)
@@ -148,10 +159,14 @@ def run(args: argparse.Namespace) -> None:
         out.write_text(to_json(summary), encoding="utf-8")
         print(f"  ✓ JSON summary saved → '{out}'")
 
-    # ── 7. Dashboard ──────────────────────────────────────────────────────
+    # ── 7. Dashboard / PDF ────────────────────────────────────────────────
     if args.dashboard:
         from scripts.dashboard import export_dashboard
         export_dashboard(df, Path(args.exports_dir))
+
+    if args.pdf:
+        from scripts.dashboard import export_pdf
+        export_pdf(df, Path(args.exports_dir))
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpendWise AI — Workflow</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 24px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 48px;
+    }
+
+    .flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ── node types ── */
+    .node {
+      width: 100%;
+      border-radius: 12px;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: relative;
+      border: 1.5px solid transparent;
+      transition: transform 0.15s;
+      cursor: default;
+    }
+    .node:hover { transform: translateY(-2px); }
+
+    .node-icon {
+      font-size: 1.4rem;
+      min-width: 36px;
+      text-align: center;
+    }
+
+    .node-body { flex: 1; }
+    .node-title { font-weight: 600; font-size: 0.95rem; }
+    .node-desc  { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; line-height: 1.4; }
+
+    .node-tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    /* colour variants */
+    .blue   { background:#1e2a4a; border-color:#4361EE; }
+    .blue   .node-title { color:#7b9ef8; }
+    .blue   .node-tag   { background:#4361EE22; color:#4361EE; border:1px solid #4361EE55; }
+
+    .purple { background:#1e1630; border-color:#7209B7; }
+    .purple .node-title { color:#b06ef0; }
+    .purple .node-tag   { background:#7209B722; color:#b06ef0; border:1px solid #7209B755; }
+
+    .pink   { background:#2a1228; border-color:#F72585; }
+    .pink   .node-title { color:#f76db7; }
+    .pink   .node-tag   { background:#F7258522; color:#F72585; border:1px solid #F7258555; }
+
+    .teal   { background:#0e2230; border-color:#4CC9F0; }
+    .teal   .node-title { color:#6ddaf7; }
+    .teal   .node-tag   { background:#4CC9F022; color:#4CC9F0; border:1px solid #4CC9F055; }
+
+    .orange { background:#2a1a0e; border-color:#F3722C; }
+    .orange .node-title { color:#f7a06d; }
+    .orange .node-tag   { background:#F3722C22; color:#F3722C; border:1px solid #F3722C55; }
+
+    .green  { background:#0e2a18; border-color:#90BE6D; }
+    .green  .node-title { color:#aad98a; }
+    .green  .node-tag   { background:#90BE6D22; color:#90BE6D; border:1px solid #90BE6D55; }
+
+    .indigo { background:#1a1e3a; border-color:#4895EF; }
+    .indigo .node-title { color:#79b0f5; }
+    .indigo .node-tag   { background:#4895EF22; color:#4895EF; border:1px solid #4895EF55; }
+
+    /* ── connectors ── */
+    .arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin: 2px 0;
+    }
+    .arrow-line {
+      width: 2px;
+      height: 20px;
+      background: linear-gradient(to bottom, #334155, #475569);
+    }
+    .arrow-head {
+      width: 0;
+      height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 10px solid #475569;
+    }
+    .arrow-label {
+      font-size: 0.68rem;
+      color: #64748b;
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    /* ── decision diamond ── */
+    .decision-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin: 6px 0;
+    }
+    .diamond {
+      background: #1e2535;
+      border: 1.5px solid #560BAD;
+      transform: rotate(45deg);
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+    }
+    .diamond-text {
+      transform: rotate(-45deg);
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #a57df5;
+      text-align: center;
+      line-height: 1.3;
+      width: 90px;
+    }
+
+    /* ── branch row ── */
+    .branch-row {
+      width: 100%;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .branch-row .node { width: auto; flex: 1; }
+
+    /* ── output section ── */
+    .section-label {
+      width: 100%;
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #475569;
+      margin: 10px 0 4px;
+      position: relative;
+    }
+    .section-label::before,
+    .section-label::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 28%;
+      height: 1px;
+      background: #1e293b;
+    }
+    .section-label::before { left: 0; }
+    .section-label::after  { right: 0; }
+
+    /* ── legend ── */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 40px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+
+<h1>SpendWise AI — Pipeline Workflow</h1>
+<p class="subtitle">End-to-end flow from raw bank export to interactive dashboard and PDF report</p>
+
+<div class="flow">
+
+  <!-- Step 1 -->
+  <div class="node blue">
+    <div class="node-icon">📂</div>
+    <div class="node-body">
+      <div class="node-title">Load File</div>
+      <div class="node-desc">Auto-detect encoding (chardet) · Latin-1 fallback · supports CSV &amp; XLSX</div>
+    </div>
+    <div class="node-tag">ingest.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 2 -->
+  <div class="node blue">
+    <div class="node-icon">✅</div>
+    <div class="node-body">
+      <div class="node-title">Validate Columns</div>
+      <div class="node-desc">Check for Date · Description · Amount — returns list of missing columns</div>
+    </div>
+    <div class="node-tag">ingest.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">missing cols?</div></div>
+
+  <!-- Decision: column mapping -->
+  <div class="decision-wrap">
+    <div class="diamond"><div class="diamond-text">Columns missing?</div></div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">yes → prompt · no → continue</div></div>
+
+  <!-- Step 3 -->
+  <div class="node blue">
+    <div class="node-icon">🗺️</div>
+    <div class="node-body">
+      <div class="node-title">Column Mapping &amp; Normalisation</div>
+      <div class="node-desc">Remove duplicates · Parse dates → YYYY-MM-DD · Convert amounts to signed float64 · Handle CR/DR, £$€₹</div>
+    </div>
+    <div class="node-tag">ingest.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 4 -->
+  <div class="node pink">
+    <div class="node-icon">🔒</div>
+    <div class="node-body">
+      <div class="node-title">Mask Card Numbers</div>
+      <div class="node-desc">Regex-mask 12–16 digit sequences → <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">****NNNN</code> · PII protected before any downstream module</div>
+    </div>
+    <div class="node-tag">ingest.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 5 -->
+  <div class="node purple">
+    <div class="node-icon">🏷️</div>
+    <div class="node-body">
+      <div class="node-title">Load Keywords &amp; Classify All</div>
+      <div class="node-desc">Read <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">keywords.json</code> · Case-insensitive substring match · Appends Category column (or "Uncategorized")</div>
+    </div>
+    <div class="node-tag">classifier.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">uncategorized rows?</div></div>
+
+  <!-- Decision: uncategorized -->
+  <div class="decision-wrap">
+    <div class="diamond"><div class="diamond-text">Uncategorized rows?</div></div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div><div class="arrow-label">interactive mode → review · --no-feedback → skip</div></div>
+
+  <!-- Step 6 -->
+  <div class="node purple">
+    <div class="node-icon">🔁</div>
+    <div class="node-body">
+      <div class="node-title">Review &amp; Re-classify</div>
+      <div class="node-desc">Prompt user for categories · Save updated keywords.json · Re-run classify_all on full DataFrame</div>
+    </div>
+    <div class="node-tag">classifier.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 7 -->
+  <div class="node green">
+    <div class="node-icon">💾</div>
+    <div class="node-body">
+      <div class="node-title">Write Processed CSV</div>
+      <div class="node-desc">Saves clean, categorised DataFrame to <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">data/processed/{stem}_categorized.csv</code></div>
+    </div>
+    <div class="node-tag">classifier.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 8 — parallel -->
+  <div class="section-label">Analysis &amp; Output</div>
+
+  <div class="branch-row">
+    <div class="node teal">
+      <div class="node-icon">📊</div>
+      <div class="node-body">
+        <div class="node-title">Build Summary</div>
+        <div class="node-desc">Total income, expenses, per-category breakdown, date range</div>
+      </div>
+      <div class="node-tag">terminal_output.py</div>
+    </div>
+    <div class="node orange">
+      <div class="node-icon">🔄</div>
+      <div class="node-body">
+        <div class="node-title">Detect Recurring</div>
+        <div class="node-desc">Groups by description · Checks amount tolerance · Labels Weekly / Monthly / etc.</div>
+      </div>
+      <div class="node-tag">recurring.py</div>
+    </div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Step 9 -->
+  <div class="node teal">
+    <div class="node-icon">🖥️</div>
+    <div class="node-body">
+      <div class="node-title">Print Summary &amp; Recurring</div>
+      <div class="node-desc">Human-readable console output · or JSON via <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">--json</code> / <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">--output-json</code></div>
+    </div>
+    <div class="node-tag">terminal_output.py</div>
+  </div>
+
+  <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+  <!-- Steps 10 & 11 — independent optional exports -->
+  <div class="section-label">Optional Exports — independent flags</div>
+
+  <div class="branch-row">
+    <div class="node indigo">
+      <div class="node-icon">📈</div>
+      <div class="node-body">
+        <div class="node-title">Build &amp; Export HTML Dashboard</div>
+        <div class="node-desc"><code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">--dashboard</code> · Donut · Monthly trend · Top merchants · Income vs Expenses · Uncategorized · Recurring table</div>
+      </div>
+      <div class="node-tag">dashboard.py</div>
+    </div>
+    <div class="node indigo">
+      <div class="node-icon">📄</div>
+      <div class="node-body">
+        <div class="node-title">Export PDF Report</div>
+        <div class="node-desc"><code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">--pdf</code> · Multi-page PDF via kaleido + reportlab · saved to <code style="background:#ffffff15;padding:1px 5px;border-radius:4px;font-size:0.8em">exports/</code></div>
+      </div>
+      <div class="node-tag">dashboard.py</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#4361EE"></div> Ingestion (ingest.py)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F72585"></div> Privacy / PII masking</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7209B7"></div> Classification (classifier.py)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#90BE6D"></div> Persistence (CSV output)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4CC9F0"></div> Terminal output</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F3722C"></div> Recurring detection</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4895EF"></div> Dashboard / PDF export</div>
+</div>
+
+</body>
+</html>
