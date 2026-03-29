@@ -4,7 +4,9 @@
 
 SpendWise AI takes messy bank transaction exports (CSV / XLSX) and produces:
 - A clean, **categorized spending summary** in the terminal
+- **ML-assisted categorisation** — learns from your labelled history to classify new transactions automatically
 - **Recurring charge detection** — subscriptions and regular payments flagged automatically
+- **Budget targets & alerts** — set monthly limits per category and get notified when you're approaching or over
 - A fully self-contained, **interactive HTML dashboard** (opens offline)
 - An optional **multi-page PDF report** for archiving or sharing
 
@@ -38,6 +40,12 @@ python main.py --file data/raw/your_export.csv --dashboard --pdf
 
 # Agent / pipe mode: JSON output, no prompts
 python main.py --file data/raw/your_export.csv --json --no-feedback
+
+# Train (or retrain) the ML classifier from your labelled history
+python main.py --file data/raw/your_export.csv --retrain-ml
+
+# Set monthly budget targets, then run with dashboard
+python main.py --file data/raw/your_export.csv --set-budget "Groceries:400" "Transport:100" --dashboard
 ```
 
 Your dashboard opens from `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html`.
@@ -61,6 +69,9 @@ Options:
   --no-feedback          Skip interactive uncategorized-transaction review
   --keywords PATH        Custom path to keywords.json
   --exports-dir DIR      Output directory for dashboards and PDFs
+  --retrain-ml           Retrain ML classifier from all processed CSVs after this run
+  --budgets PATH         Path to budgets.json (default: config/budgets.json)
+  --set-budget CAT:AMT   Set one or more monthly budget targets, e.g. "Groceries:400"
   --help                 Show this message and exit
 ```
 
@@ -83,9 +94,14 @@ spendwise-ai/
 │   ├── classifier.py          # Module 2 — keyword categoriser
 │   ├── terminal_output.py     # Module 3 — terminal / JSON summary
 │   ├── dashboard.py           # Module 4 — Plotly HTML + PDF dashboard
-│   └── recurring.py           # Module 5 — recurring transaction detector
+│   ├── recurring.py           # Module 5 — recurring transaction detector
+│   ├── ml_classifier.py       # Module 6 — ML classifier (TF-IDF + logistic regression)
+│   └── budget.py              # Module 7 — budget targets & alerts
 ├── config/
-│   └── keywords.json          # Category → keyword mapping
+│   ├── keywords.json          # Category → keyword mapping
+│   ├── ml_config.json         # ML settings (confidence threshold, min samples)
+│   └── budgets.json           # Category → monthly limit mapping
+├── models/                    # Trained ML model (git-ignored, auto-generated)
 ├── docs/
 │   └── workflow.html          # Interactive pipeline flowchart
 └── tests/                     # pytest test suite
@@ -141,3 +157,4 @@ Keywords are **case-insensitive substring matches** — `"starbucks"` will match
 | chardet ≥ 5.2 | Encoding detection |
 | kaleido ≥ 0.2.1 | Static PNG rendering for PDF charts |
 | reportlab ≥ 4.0 | PDF assembly |
+| scikit-learn ≥ 1.2 | ML classifier training & inference |
