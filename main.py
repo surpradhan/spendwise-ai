@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 SpendWise AI — CLI Entry Point
 ================================
@@ -22,7 +24,13 @@ python main.py --file data/raw/chase_jan2026.csv --retrain-ml
 python main.py --help
 """
 
-from __future__ import annotations
+import sys
+if sys.version_info < (3, 10):
+    sys.exit(
+        f"SpendWise AI requires Python 3.10+. "
+        f"Current: {sys.version.split()[0]}\n"
+        "Install Python 3.11 via pyenv: pyenv install 3.11 && pyenv local 3.11"
+    )
 
 import argparse
 import json
