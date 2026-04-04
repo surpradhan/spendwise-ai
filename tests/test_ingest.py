@@ -6,8 +6,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+import numpy as np
+
 from scripts.ingest import (
     CANONICAL_COLUMNS,
+    add_currency_column,
     fuzzy_match_columns,
     ingest,
     mask_card_numbers,
@@ -107,7 +110,9 @@ def test_ingest_auto_maps_aliases(tmp_path):
     csv = tmp_path / "bank.csv"
     csv.write_text("Post Date,Memo,Debit/Credit\n2026-01-15,STARBUCKS,-4.50\n2026-01-16,AMAZON,-32.99\n")
     df = ingest(csv, interactive=False)
-    assert list(df.columns) == ["Date", "Description", "Amount"]
+    # Canonical columns must be present (Currency is additive in v3.0)
+    for col in ["Date", "Description", "Amount", "Currency"]:
+        assert col in df.columns
     assert len(df) == 2
 
 
@@ -272,3 +277,99 @@ def test_mask_card_numbers_does_not_mutate():
     original = df.iloc[0]["Description"]
     mask_card_numbers(df)
     assert df.iloc[0]["Description"] == original
+
+
+# ---------------------------------------------------------------------------
+# add_currency_column
+# ---------------------------------------------------------------------------
+
+def test_add_currency_column_adds_usd_when_absent():
+    df = pd.DataFrame({"Date": ["2024-01-01"], "Description": ["X"], "Amount": [-5.0]})
+    result = add_currency_column(df)
+    assert "Currency" in result.columns
+    assert result.iloc[0]["Currency"] == "USD"
+
+
+def test_add_currency_column_custom_default():
+    df = pd.DataFrame({"Date": ["2024-01-01"], "Description": ["X"], "Amount": [-5.0]})
+    result = add_currency_column(df, default="GBP")
+    assert result.iloc[0]["Currency"] == "GBP"
+
+
+def test_add_currency_column_preserves_existing_value():
+    df = pd.DataFrame({
+        "Date":        ["2024-01-01"],
+        "Description": ["X"],
+        "Amount":      [-5.0],
+        "Currency":    ["INR"],
+    })
+    result = add_currency_column(df)
+    assert result.iloc[0]["Currency"] == "INR"
+
+
+def test_add_currency_column_fills_nan_with_default():
+    df = pd.DataFrame({
+        "Date":        ["2024-01-01", "2024-01-02"],
+        "Description": ["X", "Y"],
+        "Amount":      [-5.0, -10.0],
+        "Currency":    ["INR", np.nan],
+    })
+    result = add_currency_column(df)
+    assert result.iloc[0]["Currency"] == "INR"
+    assert result.iloc[1]["Currency"] == "USD"
+
+
+def test_add_currency_column_does_not_mutate_input():
+    df = pd.DataFrame({"Date": ["2024-01-01"], "Description": ["X"], "Amount": [-5.0]})
+    add_currency_column(df)
+    assert "Currency" not in df.columns
+
+
+# ---------------------------------------------------------------------------
+# ingest — Currency column integration
+# ---------------------------------------------------------------------------
+
+def test_ingest_generic_produces_currency_column(tmp_path):
+    csv = tmp_path / "bank.csv"
+    csv.write_text("Post Date,Memo,Debit/Credit\n2026-01-15,STARBUCKS,-4.50\n")
+    df = ingest(csv, interactive=False)
+    assert "Currency" in df.columns
+    assert df.iloc[0]["Currency"] == "USD"
+
+
+def test_ingest_gbp_amount_column_infers_gbp(tmp_path):
+    csv = tmp_path / "barclays.csv"
+    csv.write_text("Post Date,Memo,GBP Amount\n2026-01-15,STARBUCKS,-4.50\n")
+    df = ingest(csv, interactive=False)
+    assert df.iloc[0]["Currency"] == "GBP"
+
+
+def test_ingest_currency_override_sets_currency(tmp_path):
+    csv = tmp_path / "bank.csv"
+    csv.write_text("Post Date,Memo,Debit/Credit\n2026-01-15,STARBUCKS,-4.50\n")
+    df = ingest(csv, interactive=False, currency_override="EUR")
+    assert df.iloc[0]["Currency"] == "EUR"
+
+
+def test_ingest_bank_hint_hdfc_sets_inr(tmp_path):
+    """Forcing --bank hdfc on an HDFC-format CSV should produce INR currency."""
+    csv = tmp_path / "hdfc.csv"
+    csv.write_text(
+        "Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance\n"
+        "01/01/24,ATM WITHDRAWAL,123,,500.00,,9500.00\n"
+    )
+    df = ingest(csv, interactive=False, bank_hint="hdfc")
+    assert df.iloc[0]["Currency"] == "INR"
+    assert df.iloc[0]["Amount"] == pytest.approx(-500.0)
+
+
+def test_ingest_hdfc_autodetected(tmp_path):
+    """HDFC format is auto-detected without --bank flag."""
+    csv = tmp_path / "hdfc_auto.csv"
+    csv.write_text(
+        "Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance\n"
+        "15/06/24,SALARY CREDIT,,15/06/24,,50000.00,59500.00\n"
+    )
+    df = ingest(csv, interactive=False)
+    assert df.iloc[0]["Currency"] == "INR"
+    assert df.iloc[0]["Amount"] == pytest.approx(50000.0)

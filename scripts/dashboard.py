@@ -29,6 +29,42 @@ _PALETTE = [
     "#4895EF", "#560BAD", "#B5179E", "#F3722C", "#90BE6D",
 ]
 
+_CURRENCY_SYMBOLS: dict[str, str] = {
+    "USD": "$",
+    "GBP": "£",
+    "EUR": "€",
+    "INR": "₹",
+    "CAD": "CA$",
+    "AUD": "A$",
+}
+
+
+def _get_currency_label(df: pd.DataFrame) -> str:
+    """Return a display currency label for chart axis titles.
+
+    Returns the currency symbol when a single currency is present in *df*,
+    or the string ``'Mixed currencies'`` when multiple currencies are
+    detected.  Falls back to ``'$'`` when no ``Currency`` column exists.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame that may optionally contain a ``Currency`` column.
+
+    Returns
+    -------
+    str
+        E.g. ``'$'``, ``'₹'``, or ``'Mixed currencies'``.
+    """
+    if "Currency" not in df.columns:
+        return "$"
+    currencies = df["Currency"].dropna().unique()
+    if len(currencies) == 0:
+        return "$"   # all-NaN column — fall back to generic default
+    if len(currencies) == 1:
+        return _CURRENCY_SYMBOLS.get(currencies[0].upper(), currencies[0].upper() + " ")
+    return "Mixed currencies"
+
 
 # ---------------------------------------------------------------------------
 # Chart builders
@@ -104,13 +140,14 @@ def build_monthly_trend(df: pd.DataFrame) -> go.Figure:
     monthly = monthly.sort_values("Month")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
+    label = _get_currency_label(df)
     fig.add_trace(
         go.Bar(
             x=monthly["Month"],
             y=monthly["Expenses"],
             name="Expenses",
             marker_color="#F72585",
-            hovertemplate="<b>%{x}</b><br>Expenses: $%{y:,.2f}<extra></extra>",
+            hovertemplate=f"<b>%{{x}}</b><br>Expenses: {label}%{{y:,.2f}}<extra></extra>",
         ),
         secondary_y=False,
     )
@@ -122,7 +159,7 @@ def build_monthly_trend(df: pd.DataFrame) -> go.Figure:
             mode="lines+markers",
             line=dict(color="#4CC9F0", width=2),
             marker=dict(size=8),
-            hovertemplate="<b>%{x}</b><br>Income: $%{y:,.2f}<extra></extra>",
+            hovertemplate=f"<b>%{{x}}</b><br>Income: {label}%{{y:,.2f}}<extra></extra>",
         ),
         secondary_y=True,
     )
@@ -134,8 +171,8 @@ def build_monthly_trend(df: pd.DataFrame) -> go.Figure:
         xaxis=dict(showgrid=False),
         yaxis=dict(gridcolor="#f0f0f0"),
     )
-    fig.update_yaxes(title_text="Expenses ($)", secondary_y=False)
-    fig.update_yaxes(title_text="Income ($)", secondary_y=True)
+    fig.update_yaxes(title_text=f"Expenses ({label})", secondary_y=False)
+    fig.update_yaxes(title_text=f"Income ({label})", secondary_y=True)
     return fig
 
 
@@ -161,6 +198,7 @@ def build_top_merchants(df: pd.DataFrame) -> go.Figure:
     )
     top10["ShortName"] = top10["Description"].str[:40]
 
+    label = _get_currency_label(df)
     fig = go.Figure(
         go.Bar(
             x=top10["AbsAmount"],
@@ -171,14 +209,14 @@ def build_top_merchants(df: pd.DataFrame) -> go.Figure:
                 colorscale=[[0, "#4361EE"], [1, "#F72585"]],
                 showscale=False,
             ),
-            hovertemplate="<b>%{y}</b><br>$%{x:,.2f}<extra></extra>",
-            text=top10["AbsAmount"].map(lambda v: f"${v:,.2f}"),
+            hovertemplate=f"<b>%{{y}}</b><br>{label}%{{x:,.2f}}<extra></extra>",
+            text=top10["AbsAmount"].map(lambda v: f"{label}{v:,.2f}"),
             textposition="outside",
         )
     )
     fig.update_layout(
         title=dict(text="Top 10 Merchants", font=dict(size=16)),
-        xaxis=dict(title="Total Spent ($)", showgrid=True, gridcolor="#f0f0f0"),
+        xaxis=dict(title=f"Total Spent ({label})", showgrid=True, gridcolor="#f0f0f0"),
         yaxis=dict(showgrid=False),
         margin=dict(t=60, b=40, l=200, r=80),
         plot_bgcolor="white",
@@ -216,6 +254,7 @@ def build_income_vs_expenses(df: pd.DataFrame) -> go.Figure:
     monthly = monthly_expense.merge(monthly_income, on="Month", how="outer").fillna(0)
     monthly = monthly.sort_values("Month")
 
+    label = _get_currency_label(df)
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
@@ -223,7 +262,7 @@ def build_income_vs_expenses(df: pd.DataFrame) -> go.Figure:
             x=monthly["Month"],
             y=monthly["Income"],
             marker_color="#4CC9F0",
-            hovertemplate="<b>%{x}</b><br>Income: $%{y:,.2f}<extra></extra>",
+            hovertemplate=f"<b>%{{x}}</b><br>Income: {label}%{{y:,.2f}}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -232,7 +271,7 @@ def build_income_vs_expenses(df: pd.DataFrame) -> go.Figure:
             x=monthly["Month"],
             y=monthly["Expenses"],
             marker_color="#F72585",
-            hovertemplate="<b>%{x}</b><br>Expenses: $%{y:,.2f}<extra></extra>",
+            hovertemplate=f"<b>%{{x}}</b><br>Expenses: {label}%{{y:,.2f}}<extra></extra>",
         )
     )
     fig.update_layout(
@@ -242,7 +281,7 @@ def build_income_vs_expenses(df: pd.DataFrame) -> go.Figure:
         margin=dict(t=80, b=40, l=60, r=20),
         plot_bgcolor="white",
         xaxis=dict(showgrid=False),
-        yaxis=dict(title="Amount ($)", gridcolor="#f0f0f0"),
+        yaxis=dict(title=f"Amount ({label})", gridcolor="#f0f0f0"),
     )
     return fig
 
@@ -536,6 +575,24 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     start = dates.min().strftime("%Y-%m-%d")
     end   = dates.max().strftime("%Y-%m-%d")
 
+    # Multi-currency warning banner
+    currencies = (
+        sorted(df["Currency"].dropna().unique().tolist())
+        if "Currency" in df.columns
+        else []
+    )
+    multi_currency_banner = ""
+    if len(currencies) > 1:
+        import html as _html
+        # Escape each code individually to prevent XSS via a crafted --currency flag
+        codes = ", ".join(_html.escape(str(c)) for c in currencies)
+        multi_currency_banner = (
+            f'\n  <div class="currency-warning">'
+            f"&#9888; Multi-currency statement: {codes}. "
+            f"Amounts are shown in their original currency — no conversion applied."
+            f"</div>"
+        )
+
     import plotly.io as pio
 
     # Convert each figure to a div (no CDN/JS here — we'll inject once below)
@@ -614,6 +671,14 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
       overflow: hidden;
     }}
     .card.full-width {{ grid-column: 1 / -1; }}
+    .currency-warning {{
+      background: #fff3cd;
+      border-left: 4px solid #F3722C;
+      padding: 10px 20px;
+      margin: 0 32px 16px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }}
     footer {{
       text-align: center;
       padding: 20px;
@@ -634,7 +699,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     </div>
     <div class="badge">📅 {start} → {end}</div>
   </header>
-
+{multi_currency_banner}
   <div class="grid">
     <div class="card">{donut_div}</div>
     <div class="card">{trend_div}</div>

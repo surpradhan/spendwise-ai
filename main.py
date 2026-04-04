@@ -158,6 +158,25 @@ def _build_parser() -> argparse.ArgumentParser:
             "--set-budget 'Groceries:400' 'Transport:100'"
         ),
     )
+    parser.add_argument(
+        "--bank",
+        metavar="HINT",
+        default=None,
+        help=(
+            "Force a specific bank adapter, e.g. --bank hdfc. "
+            "Overrides auto-detection. Known values: hdfc."
+        ),
+    )
+    parser.add_argument(
+        "--currency",
+        metavar="CODE",
+        default=None,
+        help=(
+            "Set the default currency for generic imports, e.g. --currency GBP. "
+            "Ignored when a bank adapter sets currency automatically "
+            "(e.g. HDFC always uses INR)."
+        ),
+    )
 
     return parser
 
@@ -177,7 +196,12 @@ def run(args: argparse.Namespace) -> None:
     threshold     = ml_config.get("confidence_threshold", 0.70)
 
     # ── 1. Ingest ─────────────────────────────────────────────────────────
-    df = ingest(input_path, interactive=interactive)
+    df = ingest(
+        input_path,
+        interactive=interactive,
+        bank_hint=getattr(args, "bank", None),
+        currency_override=getattr(args, "currency", None),
+    )
 
     # ── 2. Classify (keywords first, ML for remainders) ───────────────────
     print("[Classifier]")
@@ -272,7 +296,9 @@ def run(args: argparse.Namespace) -> None:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
-        print_recurring(recurring_df)
+        from scripts.terminal_output import _currency_label
+        cur_sym = _currency_label(summary.get("currencies", ["USD"])[0])
+        print_recurring(recurring_df, currency_sym=cur_sym)
         print_budget_alerts(budget_alerts)
 
     if args.output_json:

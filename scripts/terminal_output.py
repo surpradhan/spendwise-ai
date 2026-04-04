@@ -24,19 +24,23 @@ def build_summary(df: pd.DataFrame) -> dict:
     ----------
     df : pd.DataFrame
         Must have columns: Date, Description, Amount, Category.
+        Optionally contains a ``Currency`` column (ISO-4217 code).
 
     Returns
     -------
     dict with keys:
         period_start        : str  (YYYY-MM-DD)
         period_end          : str  (YYYY-MM-DD)
-        total_income        : float
-        total_expenses      : float
+        total_income        : float  (aggregate across all currencies)
+        total_expenses      : float  (aggregate across all currencies)
         net                 : float
         category_totals     : dict[str, float]   (expenses only, sorted desc)
         top_merchants       : list[dict]          (top 10 by cumulative spend)
         uncategorized_count : int
         uncategorized_sample: list[dict]
+        currencies          : list[str]           (sorted distinct ISO codes)
+        currency_totals     : dict[str, dict]     (only when >1 currency;
+                              keys: income, expenses, net per currency)
     """
     dates = pd.to_datetime(df["Date"])
     period_start = dates.min().strftime("%Y-%m-%d")
@@ -81,7 +85,16 @@ def build_summary(df: pd.DataFrame) -> dict:
         ["Date", "Description", "Amount"]
     ].to_dict(orient="records")
 
-    return {
+    # Currency tracking — always produce at least one entry so consumers can
+    # safely index currencies[0] without guarding against an empty list.
+    _raw_currencies = (
+        sorted(df["Currency"].dropna().unique().tolist())
+        if "Currency" in df.columns
+        else []
+    )
+    currencies = _raw_currencies if _raw_currencies else ["USD"]
+
+    summary: dict = {
         "period_start":         period_start,
         "period_end":           period_end,
         "total_income":         round(total_income, 2),
@@ -91,12 +104,55 @@ def build_summary(df: pd.DataFrame) -> dict:
         "top_merchants":        top_merchants,
         "uncategorized_count":  uncategorized_count,
         "uncategorized_sample": uncategorized_sample,
+        "currencies":           currencies,
     }
+
+    # Per-currency breakdown — only when multiple currencies present
+    if len(currencies) > 1:
+        per_currency: dict[str, dict] = {}
+        for cur in currencies:
+            cur_df = df[df["Currency"] == cur]
+            cur_income   = float(cur_df.loc[cur_df["Amount"] > 0, "Amount"].sum())
+            cur_expenses = float(cur_df.loc[cur_df["Amount"] < 0, "Amount"].sum())
+            per_currency[cur] = {
+                "income":   round(cur_income, 2),
+                "expenses": round(abs(cur_expenses), 2),
+                "net":      round(cur_income + cur_expenses, 2),
+            }
+        summary["currency_totals"] = per_currency
+
+    return summary
 
 
 # ---------------------------------------------------------------------------
 # 2. Terminal printer
 # ---------------------------------------------------------------------------
+
+_CURRENCY_SYMBOLS: dict[str, str] = {
+    "USD": "$",
+    "GBP": "£",
+    "EUR": "€",
+    "INR": "₹",
+    "CAD": "CA$",
+    "AUD": "A$",
+}
+
+
+def _currency_label(code: str) -> str:
+    """Return a display symbol for a currency code, or the code itself.
+
+    Parameters
+    ----------
+    code : str
+        ISO-4217 currency code (e.g. ``"USD"``, ``"INR"``).
+
+    Returns
+    -------
+    str
+        Symbol (e.g. ``"$"``, ``"₹"``) or ``"CODE "`` for unknowns.
+    """
+    return _CURRENCY_SYMBOLS.get(code.upper(), f"{code.upper()} ")
+
 
 def _bar(fraction: float, width: int = 20) -> str:
     """Return a unicode block bar proportional to *fraction* (0..1)."""
@@ -125,6 +181,9 @@ def print_summary(summary: dict) -> None:
     sep  = "═" * W
     thin = "─" * W
 
+    currencies = summary.get("currencies", ["USD"])
+    sym = _currency_label(currencies[0])
+
     print(f"\n{sep}")
     print(" SpendWise AI — Spending Summary")
     print(f" Period: {summary['period_start']} to {summary['period_end']}")
@@ -134,11 +193,28 @@ def print_summary(summary: dict) -> None:
     expenses = summary["total_expenses"]
     net      = summary["net"]
 
-    print(f" {'Total Income':<20}: ${income:>10,.2f}")
-    print(f" {'Total Expenses':<20}: ${expenses:>10,.2f}")
-    print(f" {'Net':<20}: ${net:>10,.2f}")
+    # Multi-currency notice
+    if len(currencies) > 1:
+        print(f"  ⚠  Multi-currency statement: {', '.join(currencies)}")
+        print("  Totals below are aggregated across all currencies.")
+        print(f" {thin}")
 
-    print(f"\n {'Spending by Category'}")
+    print(f" {'Total Income':<20}: {sym}{income:>10,.2f}")
+    print(f" {'Total Expenses':<20}: {sym}{expenses:>10,.2f}")
+    print(f" {'Net':<20}: {sym}{net:>10,.2f}")
+
+    # Per-currency breakdown (multi-currency only)
+    if "currency_totals" in summary:
+        print(f"\n {'Per-Currency Breakdown'}")
+        print(f" {thin}")
+        for cur, totals in summary["currency_totals"].items():
+            csym = _currency_label(cur)
+            print(f"  {cur}  Income: {csym}{totals['income']:,.2f}  "
+                  f"Expenses: {csym}{totals['expenses']:,.2f}  "
+                  f"Net: {csym}{totals['net']:,.2f}")
+
+    cat_label = "(all currencies combined)" if len(currencies) > 1 else ""
+    print(f"\n {'Spending by Category'} {cat_label}")
     print(f" {thin}")
 
     cat_totals = summary["category_totals"]
@@ -148,13 +224,13 @@ def print_summary(summary: dict) -> None:
     for cat, amount in cat_totals.items():
         pct = (amount / total_expense) * 100
         bar = _bar(amount / total_expense, width=16)
-        print(f"  {cat:<{col_w}}  ${amount:>9,.2f}   {bar}  {pct:5.1f}%")
+        print(f"  {cat:<{col_w}}  {sym}{amount:>9,.2f}   {bar}  {pct:5.1f}%")
 
     print(f"\n {'Top 10 Merchants'}")
     print(f" {thin}")
     for entry in summary["top_merchants"]:
         merchant = _mask_residual(entry["merchant"])[:40]
-        print(f"  {merchant:<40}  ${entry['total']:>9,.2f}")
+        print(f"  {merchant:<40}  {sym}{entry['total']:>9,.2f}")
 
     uncat = summary["uncategorized_count"]
     if uncat:
@@ -168,7 +244,7 @@ def print_summary(summary: dict) -> None:
 # 3. Recurring transaction printer
 # ---------------------------------------------------------------------------
 
-def print_recurring(recurring_df: pd.DataFrame) -> None:
+def print_recurring(recurring_df: pd.DataFrame, currency_sym: str = "$") -> None:
     """Print a recurring-transaction summary to stdout.
 
     Parameters
@@ -177,6 +253,9 @@ def print_recurring(recurring_df: pd.DataFrame) -> None:
         As returned by :func:`scripts.recurring.detect_recurring`.
         Expected columns: Description, Category, Avg_Amount, Frequency,
         Occurrences, Last_Date.
+    currency_sym : str
+        Currency symbol to prefix amounts (e.g. ``"$"``, ``"₹"``).
+        Defaults to ``"$"`` for backward compatibility.
     """
     if recurring_df.empty:
         return
@@ -199,7 +278,7 @@ def print_recurring(recurring_df: pd.DataFrame) -> None:
         occ    = int(row["Occurrences"])
         last   = row["Last_Date"]
         print(
-            f"  {desc:<{desc_w}}  ${amount:>8,.2f}/cycle"
+            f"  {desc:<{desc_w}}  {currency_sym}{amount:>8,.2f}/cycle"
             f"  {freq:<10}  {occ}× (last: {last})"
         )
 
