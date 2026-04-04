@@ -50,7 +50,7 @@ from scripts.ml_classifier import (
     save_model,
     train_model,
 )
-from scripts.terminal_output import build_summary, currency_label, print_summary, print_recurring, print_budget_alerts, to_json
+from scripts.terminal_output import build_summary, currency_label, print_summary, print_recurring, print_budget_alerts, print_anomaly_report, to_json
 from scripts.recurring import detect_recurring
 from scripts.budget import load_budgets, save_budgets, evaluate_budgets
 
@@ -179,6 +179,25 @@ def _build_parser() -> argparse.ArgumentParser:
             "(e.g. HDFC always uses INR)."
         ),
     )
+    parser.add_argument(
+        "--anomalies",
+        action="store_true",
+        help=(
+            "Run anomaly detection after classification and print flagged "
+            "transactions to the terminal."
+        ),
+    )
+    parser.add_argument(
+        "--query",
+        metavar="QUERY",
+        default=None,
+        help=(
+            "Execute a natural-language query against the classified transactions "
+            "and print the result.  "
+            "Examples: 'show groceries', 'top 5', 'sum transport last 3 months', "
+            "'monthly food & drink', 'search amazon', 'categories'."
+        ),
+    )
 
     return parser
 
@@ -285,32 +304,48 @@ def run(args: argparse.Namespace) -> None:
         print(f"  ✓ Budgets updated → '{budgets_path}'")
 
     # ── 7. Build summary + detect recurring ───────────────────────────────
-    summary      = build_summary(df)
-    recurring_df = detect_recurring(df)
-
-    # ── 8. Output ─────────────────────────────────────────────────────────
+    summary       = build_summary(df)
+    recurring_df  = detect_recurring(df)
     budget_alerts = evaluate_budgets(summary, budgets)
+    cur_sym       = currency_label(summary.get("currencies", ["USD"])[0])
 
+    # ── 8. (Optional) Anomaly detection — computed once here ─────────────
+    anomaly_df = None
+    if getattr(args, "anomalies", False):
+        from scripts.anomaly import detect_anomalies
+        anomaly_df = detect_anomalies(df)
+
+    # ── 9. Output ─────────────────────────────────────────────────────────
     if args.json_stdout:
+        # All structured output goes into a single JSON blob so stdout
+        # remains valid JSON regardless of which optional flags are set.
         payload = json.loads(to_json(summary))
         payload["recurring_transactions"] = recurring_df.to_dict(orient="records")
         payload["budget_alerts"] = budget_alerts
+        if anomaly_df is not None:
+            payload["anomalies"] = anomaly_df.to_dict(orient="records")
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
-        cur_sym = currency_label(summary.get("currencies", ["USD"])[0])
         print_recurring(recurring_df, currency_sym=cur_sym)
         print_budget_alerts(budget_alerts, currency_sym=cur_sym)
+        if anomaly_df is not None:
+            print_anomaly_report(anomaly_df, currency_sym=cur_sym)
+        if getattr(args, "query", None):
+            from scripts.nl_query import execute_query
+            print(execute_query(args.query, df, currency_sym=cur_sym))
 
     if args.output_json:
         out = Path(args.output_json)
         out.parent.mkdir(parents=True, exist_ok=True)
         payload = json.loads(to_json(summary))
         payload["budget_alerts"] = budget_alerts
+        if anomaly_df is not None:
+            payload["anomalies"] = anomaly_df.to_dict(orient="records")
         out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  ✓ JSON summary saved → '{out}'")
 
-    # ── 8. Dashboard / PDF ────────────────────────────────────────────────
+    # ── 11. Dashboard / PDF ───────────────────────────────────────────────
     if args.dashboard:
         from scripts.dashboard import export_dashboard
         export_dashboard(df, Path(args.exports_dir), budgets=budgets)
