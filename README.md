@@ -11,6 +11,8 @@
 
 | Feature | Detail |
 |---------|--------|
+| **Multi-bank adapter support** | Auto-detects HDFC Bank exports; generic fallback handles any standard CSV with fuzzy column mapping |
+| **Multi-currency tracking** | `Currency` column preserved per transaction (INR, GBP, USD, etc.); per-currency breakdown in summary and dashboard |
 | **Auto-categorises transactions** | Keyword rules with an ML fallback (TF-IDF + logistic regression) that learns from your history |
 | **Detects recurring charges** | Subscriptions and regular payments flagged without any configuration |
 | **Budget tracking & alerts** | Set monthly limits per category; get warned at 80 % and 100 % |
@@ -24,17 +26,18 @@
 
 ```mermaid
 flowchart LR
-    A[/"Bank Export\nCSV / XLSX"/] --> B["Ingest and Normalise\nencoding, dates, PII masking"]
-    B --> C{Classify}
-    C -->|keyword pass| D["Keyword Rules"]
-    C -->|remaining rows| E["ML Model\nTF-IDF + LR"]
-    D --> F["Categorised DataFrame"]
-    E --> F
-    F --> G["HTML Dashboard"]
-    F --> H["PDF Report"]
-    F --> I["Recurring Detector"]
-    F --> J["Budget Alerts"]
-    F --> K["JSON Output"]
+    A[/"Bank Export\nCSV / XLSX"/] --> B["Bank Adapter\nHDFC / Generic"]
+    B --> C["Ingest and Normalise\nencoding, dates, PII masking\nCurrency column"]
+    C --> D{Classify}
+    D -->|keyword pass| E["Keyword Rules"]
+    D -->|remaining rows| F["ML Model\nTF-IDF + LR"]
+    E --> G["Categorised DataFrame"]
+    F --> G
+    G --> H["HTML Dashboard"]
+    G --> I["PDF Report"]
+    G --> J["Recurring Detector"]
+    G --> K["Budget Alerts"]
+    G --> L["JSON Output"]
 ```
 
 ---
@@ -65,6 +68,12 @@ python main.py --file data/raw/export.csv --dashboard --pdf
 # Automation / pipe mode — JSON to stdout, no prompts
 python main.py --file data/raw/export.csv --json --no-feedback
 
+# HDFC Bank statement (auto-detected, or force with --bank hdfc)
+python main.py --file data/raw/hdfc_statement.csv --dashboard
+
+# Non-USD import — set the currency code for the generic adapter
+python main.py --file data/raw/barclays.csv --currency GBP --dashboard
+
 # Set monthly budget limits, then run with dashboard
 python main.py --file data/raw/export.csv --set-budget "Groceries:400" "Transport:100" --dashboard
 
@@ -79,6 +88,8 @@ python main.py --file data/raw/export.csv --retrain-ml
 | Flag | Description |
 |------|-------------|
 | `--file PATH` | **(required)** Path to raw bank export |
+| `--bank HINT` | Force a bank adapter, e.g. `--bank hdfc`. Overrides auto-detection |
+| `--currency CODE` | Default currency for generic imports, e.g. `--currency GBP` |
 | `--dashboard` | Generate interactive HTML dashboard |
 | `--pdf` | Generate multi-page PDF report |
 | `--json` | Write JSON summary to stdout |
@@ -139,6 +150,11 @@ spendwise-ai/
 ├── data/processed/            # Cleaned, categorised CSVs (auto-generated)
 ├── exports/                   # Dashboards and PDF reports (auto-generated)
 ├── scripts/
+│   ├── adapters/              # Bank-format adapters
+│   │   ├── __init__.py        #   detect_adapter() registry
+│   │   ├── base.py            #   BankAdapter abstract base class
+│   │   ├── generic.py         #   GenericAdapter (fallback; infers currency)
+│   │   └── hdfc.py            #   HDFCAdapter (HDFC Bank statement format)
 │   ├── ingest.py              # Ingestion & normalisation
 │   ├── classifier.py          # Keyword categoriser
 │   ├── ml_classifier.py       # ML classifier (TF-IDF + logistic regression)

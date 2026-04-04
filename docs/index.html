@@ -328,6 +328,16 @@
     <p class="section-sub">No subscriptions, no data sharing, no SaaS lock-in — just a Python script and your data.</p>
     <div class="feature-grid">
       <div class="feature-card">
+        <div class="feature-icon">🏦</div>
+        <h3>Multi-Bank Adapter Support</h3>
+        <p>Auto-detects HDFC Bank exports. A generic fallback handles any standard CSV with fuzzy column mapping — no manual configuration needed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💱</div>
+        <h3>Multi-Currency Tracking</h3>
+        <p>Imports in INR, GBP, EUR, and more. Each transaction retains its original currency; the dashboard shows per-currency breakdowns automatically.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">🤖</div>
         <h3>ML-Powered Categorisation</h3>
         <p>TF-IDF + logistic regression learns from your labelling history and fills in what keywords miss — getting smarter with every run.</p>
@@ -368,6 +378,11 @@
     <h2>From raw export to insight in one command</h2>
     <p class="section-sub">A deterministic, reproducible pipeline — every step is transparent and auditable.</p>
     <div class="pipeline-steps">
+      <div class="step">
+        <div class="step-num">🏦</div>
+        <h4>Adapt</h4>
+        <p>Auto-detects bank format (HDFC, Generic); sets currency from column or flag</p>
+      </div>
       <div class="step">
         <div class="step-num">📁</div>
         <h4>Ingest</h4>
@@ -413,6 +428,12 @@
       <div>&nbsp;</div>
       <div><span class="c"># With PDF report</span></div>
       <div><span class="kw">python</span> main.py --file data/raw/export.csv --dashboard --pdf</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># HDFC Bank statement (auto-detected)</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/hdfc_statement.csv --dashboard</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># Non-USD import — set the currency</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/barclays.csv --currency <span class="fl">GBP</span> --dashboard</div>
       <div>&nbsp;</div>
       <div><span class="c"># Set budget limits, then run</span></div>
       <div><span class="kw">python</span> main.py --file data/raw/export.csv \</div>
