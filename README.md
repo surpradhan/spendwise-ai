@@ -1,148 +1,116 @@
 # SpendWise AI
 
-> Local, open-source personal finance analyser — no cloud, no API keys, no data leaves your machine.
+> **Your finances, analysed locally.**
+> Drop a bank export in. Get categorised spending, ML-powered insights, and an interactive dashboard — in under a minute. No cloud. No API keys. No data leaves your machine.
 
-SpendWise AI takes messy bank transaction exports (CSV / XLSX) and produces:
-- A clean, **categorized spending summary** in the terminal
-- **ML-assisted categorisation** — learns from your labelled history to classify new transactions automatically
-- **Recurring charge detection** — subscriptions and regular payments flagged automatically
-- **Budget targets & alerts** — set monthly limits per category and get notified when you're approaching or over
-- A fully self-contained, **interactive HTML dashboard** (opens offline)
-- An optional **multi-page PDF report** for archiving or sharing
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](#) [![Local only](https://img.shields.io/badge/data-local--only-f59e0b)](#) [![scikit-learn](https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikitlearn&logoColor=white)](#)
 
 ---
 
-## Quick Start (< 10 minutes)
+## What it does
 
-### 1. Prerequisites
-- Python 3.10+
+| Feature | Detail |
+|---------|--------|
+| **Auto-categorises transactions** | Keyword rules with an ML fallback (TF-IDF + logistic regression) that learns from your history |
+| **Detects recurring charges** | Subscriptions and regular payments flagged without any configuration |
+| **Budget tracking & alerts** | Set monthly limits per category; get warned at 80 % and 100 % |
+| **Interactive HTML dashboard** | 7 charts — donut, trend, top merchants, income vs expenses, and more — fully offline |
+| **PDF report** | Multi-page export for archiving or sharing |
+| **Pipe-friendly JSON mode** | `--json --no-feedback` for scripting and automation |
 
-### 2. Install dependencies
+---
+
+## Pipeline
+
+```mermaid
+flowchart LR
+    A([("Bank Export\nCSV · XLSX")]) --> B["🔍 Ingest\n& Normalise\n━━━━━━━━\nencoding · dates\nPII masking"]
+    B --> C{Classify}
+    C -->|"keyword pass"| D["🏷️ Keyword\nRules"]
+    C -->|"remaining rows"| E["🤖 ML Model\nTF-IDF + LR"]
+    D & E --> F[/"Categorised\nDataFrame"/]
+    F --> G["📊 HTML\nDashboard"]
+    F --> H["📄 PDF\nReport"]
+    F --> I["🔁 Recurring\nDetector"]
+    F --> J["💰 Budget\nAlerts"]
+    F --> K["{ } JSON\nOutput"]
+```
+
+---
+
+## Quick Start
+
 ```bash
+# 1. Install
 pip install -r requirements.txt
+
+# 2. Drop your bank export into data/raw/, then run
+python main.py --file data/raw/export.csv --dashboard
 ```
 
-### 3. Drop your bank export into `data/raw/`
-Supported formats: `.csv`, `.xlsx`, `.xls`
+Your dashboard is saved to `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html` — open it in any browser, no server needed.
 
-Required columns (exact names, or you'll be prompted to map them):
-- `Date` — transaction date
-- `Description` — merchant / narrative
-- `Amount` — numeric amount (expenses negative or positive, both work)
+**Supported formats:** `.csv`, `.xlsx`, `.xls`
+**Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
 
-### 4. Run
+---
+
+## Common Commands
+
 ```bash
-# Human-review mode: interactive correction + HTML dashboard
-python main.py --file data/raw/your_export.csv --dashboard
+# Interactive review + PDF report
+python main.py --file data/raw/export.csv --dashboard --pdf
 
-# Human-review + PDF report
-python main.py --file data/raw/your_export.csv --dashboard --pdf
+# Automation / pipe mode — JSON to stdout, no prompts
+python main.py --file data/raw/export.csv --json --no-feedback
 
-# Agent / pipe mode: JSON output, no prompts
-python main.py --file data/raw/your_export.csv --json --no-feedback
+# Set monthly budget limits, then run with dashboard
+python main.py --file data/raw/export.csv --set-budget "Groceries:400" "Transport:100" --dashboard
 
-# Train (or retrain) the ML classifier from your labelled history
-python main.py --file data/raw/your_export.csv --retrain-ml
-
-# Set monthly budget targets, then run with dashboard
-python main.py --file data/raw/your_export.csv --set-budget "Groceries:400" "Transport:100" --dashboard
+# Retrain the ML classifier from your entire labelled history
+python main.py --file data/raw/export.csv --retrain-ml
 ```
-
-Your dashboard opens from `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html`.
-Your PDF report is saved to `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.pdf`.
 
 ---
 
 ## CLI Reference
 
-```
-python main.py --file PATH [options]
-
-Required:
-  --file, -f PATH        Path to the raw bank export (.csv or .xlsx)
-
-Options:
-  --dashboard            Generate interactive HTML dashboard
-  --pdf                  Generate multi-page PDF report (requires kaleido + reportlab)
-  --json                 Write JSON summary to stdout (includes recurring transactions)
-  --output-json PATH     Write JSON summary to a file
-  --no-feedback          Skip interactive uncategorized-transaction review
-  --keywords PATH        Custom path to keywords.json
-  --exports-dir DIR      Output directory for dashboards and PDFs
-  --retrain-ml           Retrain ML classifier from all processed CSVs after this run
-  --budgets PATH         Path to budgets.json (default: config/budgets.json)
-  --set-budget CAT:AMT   Set one or more monthly budget targets, e.g. "Groceries:400"
-  --help                 Show this message and exit
-```
-
----
-
-## Project Structure
-
-```
-spendwise-ai/
-├── main.py                    # CLI entry point
-├── README.md                  # This file
-├── LICENSE                    # MIT licence
-├── requirements.txt           # Dependencies
-├── data/
-│   ├── raw/                   # Drop raw bank exports here
-│   └── processed/             # Cleaned, categorized CSVs (auto-generated)
-├── exports/                   # HTML dashboards (auto-generated)
-├── scripts/
-│   ├── ingest.py              # Module 1 — ingestion & normalisation
-│   ├── classifier.py          # Module 2 — keyword categoriser
-│   ├── terminal_output.py     # Module 3 — terminal / JSON summary
-│   ├── dashboard.py           # Module 4 — Plotly HTML + PDF dashboard
-│   ├── recurring.py           # Module 5 — recurring transaction detector
-│   ├── ml_classifier.py       # Module 6 — ML classifier (TF-IDF + logistic regression)
-│   └── budget.py              # Module 7 — budget targets & alerts
-├── config/
-│   ├── keywords.json          # Category → keyword mapping
-│   ├── ml_config.json         # ML settings (confidence threshold, min samples)
-│   └── budgets.json           # Category → monthly limit mapping
-├── models/                    # Trained ML model (git-ignored, auto-generated)
-├── docs/
-│   └── workflow.html          # Interactive pipeline flowchart
-└── tests/                     # pytest test suite
-```
-
----
-
-## Pipeline Workflow
-
-An interactive flowchart of the full ingestion-to-dashboard pipeline is available at:
-
-```
-docs/workflow.html
-```
-
-Open it in any browser — no server required. It covers every step from raw file
-loading through PII masking, classification, recurring detection, and optional
-dashboard / PDF export.
+| Flag | Description |
+|------|-------------|
+| `--file PATH` | **(required)** Path to raw bank export |
+| `--dashboard` | Generate interactive HTML dashboard |
+| `--pdf` | Generate multi-page PDF report |
+| `--json` | Write JSON summary to stdout |
+| `--output-json PATH` | Write JSON summary to a file |
+| `--no-feedback` | Skip interactive review (for scripting) |
+| `--retrain-ml` | Retrain ML classifier after this run |
+| `--set-budget CAT:AMT` | Set one or more monthly budget limits |
+| `--keywords PATH` | Custom `keywords.json` path |
+| `--budgets PATH` | Custom `budgets.json` path |
+| `--exports-dir DIR` | Output directory for dashboards and PDFs |
 
 ---
 
 ## Customising Categories
 
-Edit `config/keywords.json` to add merchants or create new categories:
+Edit `config/keywords.json` to add merchants or new categories:
 
 ```json
 {
-  "Pet Care": ["petco", "petsmart", "chewy", "banfield"],
+  "Pet Care":    ["petco", "petsmart", "chewy"],
   "Food & Drink": ["starbucks", "chipotle", "your local cafe"]
 }
 ```
 
-Keywords are **case-insensitive substring matches** — `"starbucks"` will match
-`"STARBUCKS #1234"` and `"Starbucks Coffee"`.
+Keywords are **case-insensitive substring matches** — `"starbucks"` matches `"STARBUCKS #1234"`.
+After adding new categories, run `--retrain-ml` so the ML model picks them up.
 
 ---
 
 ## Privacy
 
-- All processing is **100% local** — no internet connection required after install.
-- Card numbers (12–16 digits) are automatically masked to `****1234` in all outputs.
+- **100 % local** — no network calls after install.
+- Card numbers (12–16 digits) are auto-masked to `****1234` in every output — terminal, CSV, and dashboard.
 - No analytics, telemetry, or logging to external services.
 
 ---
@@ -151,10 +119,35 @@ Keywords are **case-insensitive substring matches** — `"starbucks"` will match
 
 | Package | Purpose |
 |---------|---------|
-| pandas ≥ 2.0 | Data processing |
-| plotly ≥ 5.18 | Interactive charts |
-| openpyxl ≥ 3.1 | Excel file support |
-| chardet ≥ 5.2 | Encoding detection |
-| kaleido ≥ 0.2.1 | Static PNG rendering for PDF charts |
-| reportlab ≥ 4.0 | PDF assembly |
-| scikit-learn ≥ 1.2 | ML classifier training & inference |
+| `pandas ≥ 2.0` | Data processing |
+| `plotly ≥ 5.18` | Interactive charts |
+| `scikit-learn ≥ 1.2` | ML classifier |
+| `openpyxl ≥ 3.1` | Excel file support |
+| `chardet ≥ 5.2` | Encoding detection |
+| `kaleido ≥ 0.2.1` | Static PNG rendering (PDF charts) |
+| `reportlab ≥ 4.0` | PDF assembly |
+
+---
+
+## Project Structure
+
+```
+spendwise-ai/
+├── main.py                    # CLI entry point
+├── data/raw/                  # Drop raw bank exports here
+├── data/processed/            # Cleaned, categorised CSVs (auto-generated)
+├── exports/                   # Dashboards and PDF reports (auto-generated)
+├── scripts/
+│   ├── ingest.py              # Ingestion & normalisation
+│   ├── classifier.py          # Keyword categoriser
+│   ├── ml_classifier.py       # ML classifier (TF-IDF + logistic regression)
+│   ├── recurring.py           # Recurring transaction detector
+│   ├── budget.py              # Budget targets & alerts
+│   ├── dashboard.py           # Plotly HTML + PDF dashboard
+│   └── terminal_output.py     # Terminal & JSON summary
+├── config/
+│   ├── keywords.json          # Category → keyword mapping (edit this)
+│   ├── budgets.json           # Category → monthly limit (edit this)
+│   └── ml_config.json         # ML settings (confidence threshold)
+└── models/                    # Trained ML model (git-ignored, auto-generated)
+```

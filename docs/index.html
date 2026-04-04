@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpendWise AI — Local Personal Finance Analyser</title>
+  <meta name="description" content="Open-source personal finance tool. Drop a bank export in, get categorised spending, ML-powered insights, and an interactive dashboard — no cloud, no API keys." />
+  <style>
+    :root {
+      --blue:   #4361EE;
+      --purple: #7209B7;
+      --pink:   #F72585;
+      --cyan:   #4CC9F0;
+      --dark:   #0f1117;
+      --dark2:  #181c27;
+      --dark3:  #1e2333;
+      --border: rgba(255,255,255,0.08);
+      --text:   #e2e8f0;
+      --muted:  #94a3b8;
+      --radius: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,17,23,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: #fff; text-decoration: none; }
+    .nav-logo span { color: var(--cyan); }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color .2s; }
+    .nav-links a:hover { color: #fff; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 100px 1.5rem 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(67,97,238,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(67,97,238,0.15);
+      border: 1px solid rgba(67,97,238,0.35);
+      color: var(--cyan);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1.2rem;
+    }
+    h1 .gradient {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: var(--radius);
+      font-weight: 600; font-size: 0.95rem;
+      text-decoration: none; cursor: pointer; border: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), #3a56d4);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(67,97,238,0.4);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 28px rgba(67,97,238,0.55); }
+    .btn-ghost {
+      background: var(--dark3);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); }
+
+    /* shield badges row */
+    .shields { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+    .shields img { height: 20px; }
+
+    /* ── Terminal demo ── */
+    .terminal-wrap {
+      max-width: 720px;
+      margin: 4rem auto 0;
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    }
+    .terminal-bar {
+      background: #1a1d27;
+      padding: 10px 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #ffbd2e; }
+    .dot-g { background: #28c840; }
+    .terminal-title { margin-left: auto; font-size: 0.75rem; color: var(--muted); }
+    .terminal-body { padding: 1.4rem 1.6rem; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.85rem; line-height: 1.8; }
+    .t-prompt { color: var(--cyan); }
+    .t-cmd    { color: #e2e8f0; }
+    .t-ok     { color: #86efac; }
+    .t-info   { color: var(--muted); }
+    .t-warn   { color: #fbbf24; }
+    .t-cat    { color: #c084fc; }
+
+    /* ── Sections ── */
+    section { padding: 80px 1.5rem; }
+    .container { max-width: 1080px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--cyan); margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 700; letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .section-sub { color: var(--muted); max-width: 560px; margin-bottom: 3rem; font-size: 1rem; }
+
+    /* ── Feature grid ── */
+    .features { background: var(--dark2); }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--dark3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: rgba(67,97,238,0.4); transform: translateY(-3px); }
+    .feature-icon { font-size: 1.75rem; margin-bottom: 0.9rem; }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── Pipeline ── */
+    .pipeline-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0;
+      position: relative;
+      margin-top: 2.5rem;
+    }
+    .pipeline-steps::before {
+      content: '';
+      position: absolute;
+      top: 36px; left: 80px; right: 80px; height: 2px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      z-index: 0;
+    }
+    .step {
+      text-align: center;
+      position: relative; z-index: 1;
+      padding: 0 1rem 0;
+    }
+    .step-num {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; margin: 0 auto 1rem;
+      box-shadow: 0 0 0 4px var(--dark), 0 0 0 6px rgba(67,97,238,0.3);
+    }
+    .step h4 { font-size: 0.88rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .step p  { font-size: 0.8rem; color: var(--muted); }
+
+    /* ── Install ── */
+    .install { background: var(--dark2); }
+    .code-block {
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.4rem 1.6rem;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.875rem;
+      line-height: 2;
+      overflow-x: auto;
+    }
+    .code-block .c  { color: var(--muted); }
+    .code-block .kw { color: var(--cyan); }
+    .code-block .st { color: #86efac; }
+    .code-block .fl { color: #fbbf24; }
+
+    /* ── Privacy ── */
+    .privacy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 2.5rem;
+    }
+    .privacy-item {
+      background: var(--dark3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.4rem;
+      display: flex; gap: 1rem; align-items: flex-start;
+    }
+    .privacy-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .privacy-item h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .privacy-item p  { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 640px) {
+      .pipeline-steps::before { display: none; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a class="nav-logo" href="#">SpendWise <span>AI</span></a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#pipeline">Pipeline</a></li>
+    <li><a href="#install">Quick Start</a></li>
+    <li><a href="#privacy">Privacy</a></li>
+    <li><a href="https://github.com/surpradhan/spendwise-ai">GitHub ↗</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="badge">Open Source · 100% Local</div>
+  <h1>Personal finance,<br><span class="gradient">analysed locally.</span></h1>
+  <p>Drop a bank export in. Get categorised spending, ML-powered insights, recurring charge detection, and an interactive dashboard — in under a minute.</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#install">Get started</a>
+    <a class="btn btn-ghost" href="https://github.com/surpradhan/spendwise-ai">View on GitHub</a>
+  </div>
+  <div class="shields">
+    <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" />
+    <img src="https://img.shields.io/badge/license-MIT-22c55e" alt="MIT" />
+    <img src="https://img.shields.io/badge/data-local--only-f59e0b" alt="Local only" />
+    <img src="https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikitlearn&logoColor=white" alt="scikit-learn" />
+  </div>
+
+  <!-- Terminal demo -->
+  <div class="terminal-wrap">
+    <div class="terminal-bar">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="terminal-title">terminal</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="t-prompt">$</span> <span class="t-cmd">python main.py --file data/raw/march.csv --dashboard</span></div>
+      <div class="t-info">✔  Loaded 312 transactions · 0 duplicates removed</div>
+      <div class="t-info">✔  Keyword pass  → 279 classified</div>
+      <div class="t-info">✔  ML pass       → 27 classified  (5 below threshold → Uncategorized)</div>
+      <div>&nbsp;</div>
+      <div class="t-ok">── Spending Summary ────────────────────────</div>
+      <div><span class="t-cat">  Groceries      </span><span class="t-ok"> $412.50</span></div>
+      <div><span class="t-cat">  Food &amp; Drink   </span><span class="t-ok"> $289.00</span></div>
+      <div><span class="t-cat">  Transport      </span><span class="t-ok"> $134.20</span></div>
+      <div><span class="t-cat">  Subscriptions  </span><span class="t-ok">  $89.97</span></div>
+      <div>&nbsp;</div>
+      <div class="t-warn">⚠  Groceries: 103% of $400 budget (EXCEEDED)</div>
+      <div class="t-info">✔  Dashboard → exports/dashboard_2025-03-01_to_2025-03-31.html</div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <h2>Everything you need to understand your spending</h2>
+    <p class="section-sub">No subscriptions, no data sharing, no SaaS lock-in — just a Python script and your data.</p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>ML-Powered Categorisation</h3>
+        <p>TF-IDF + logistic regression learns from your labelling history and fills in what keywords miss — getting smarter with every run.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Interactive Dashboard</h3>
+        <p>Seven Plotly charts — donut, monthly trend, top merchants, income vs expenses — in a single self-contained HTML file. Works offline.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔁</div>
+        <h3>Recurring Charge Detection</h3>
+        <p>Automatically surfaces subscriptions and regular payments — no configuration needed. See frequency, median gap, and first/last dates.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <h3>Budget Alerts</h3>
+        <p>Set monthly limits per category with <code>--set-budget "Groceries:400"</code>. Get warned at 80 % and notified when you exceed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>PDF Reports</h3>
+        <p>Multi-page PDF export for archiving or sharing. Same charts as the dashboard, rendered to static images via kaleido + reportlab.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚙️</div>
+        <h3>Pipe-Friendly JSON Mode</h3>
+        <p><code>--json --no-feedback</code> outputs a structured JSON summary — easy to pipe into other tools, scripts, or cron jobs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pipeline -->
+<section id="pipeline">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2>From raw export to insight in one command</h2>
+    <p class="section-sub">A deterministic, reproducible pipeline — every step is transparent and auditable.</p>
+    <div class="pipeline-steps">
+      <div class="step">
+        <div class="step-num">📁</div>
+        <h4>Ingest</h4>
+        <p>Auto-detects encoding, normalises dates &amp; amounts, masks card numbers</p>
+      </div>
+      <div class="step">
+        <div class="step-num">🏷️</div>
+        <h4>Keyword Pass</h4>
+        <p>Case-insensitive substring matching against your <code>keywords.json</code></p>
+      </div>
+      <div class="step">
+        <div class="step-num">🤖</div>
+        <h4>ML Pass</h4>
+        <p>TF-IDF + logistic regression fills remaining uncategorised rows</p>
+      </div>
+      <div class="step">
+        <div class="step-num">📊</div>
+        <h4>Summarise</h4>
+        <p>Budget evaluation, recurring detection, terminal &amp; JSON output</p>
+      </div>
+      <div class="step">
+        <div class="step-num">🚀</div>
+        <h4>Export</h4>
+        <p>Interactive HTML dashboard and optional PDF report</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Quick Start / Install -->
+<section class="install" id="install">
+  <div class="container">
+    <div class="section-label">Quick Start</div>
+    <h2>Up and running in &lt; 10 minutes</h2>
+    <p class="section-sub">Requires Python 3.10+. No accounts, no API keys.</p>
+    <div class="code-block">
+      <div><span class="c"># 1. Clone and install</span></div>
+      <div><span class="kw">git clone</span> <span class="st">https://github.com/surpradhan/spendwise-ai</span></div>
+      <div><span class="kw">pip install</span> -r requirements.txt</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># 2. Drop your bank export into data/raw/, then run</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/export.csv --dashboard</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># With PDF report</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/export.csv --dashboard --pdf</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># Set budget limits, then run</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/export.csv \</div>
+      <div>    --set-budget <span class="fl">"Groceries:400"</span> <span class="fl">"Transport:100"</span> --dashboard</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># Retrain ML model from your labelled history</span></div>
+      <div><span class="kw">python</span> main.py --file data/raw/export.csv --retrain-ml</div>
+    </div>
+    <p style="margin-top:1.25rem; color: var(--muted); font-size: 0.88rem;">
+      Supported formats: <strong style="color:var(--text)">CSV, XLSX, XLS</strong> &nbsp;·&nbsp;
+      Required columns: <strong style="color:var(--text)">Date, Description, Amount</strong>
+      (you'll be prompted to map them if the names differ)
+    </p>
+  </div>
+</section>
+
+<!-- Privacy -->
+<section id="privacy">
+  <div class="container">
+    <div class="section-label">Privacy</div>
+    <h2>Your data never leaves your machine</h2>
+    <p class="section-sub">SpendWise AI is built on a simple principle: your financial data is yours.</p>
+    <div class="privacy-grid">
+      <div class="privacy-item">
+        <div class="privacy-icon">🔒</div>
+        <div>
+          <h4>100% Local Processing</h4>
+          <p>No internet connection required after install. All analysis runs on your hardware.</p>
+        </div>
+      </div>
+      <div class="privacy-item">
+        <div class="privacy-icon">🎭</div>
+        <div>
+          <h4>Automatic PII Masking</h4>
+          <p>Card numbers (12–16 digits) are masked to <code>****1234</code> in all outputs — terminal, CSV, and dashboard.</p>
+        </div>
+      </div>
+      <div class="privacy-item">
+        <div class="privacy-icon">📡</div>
+        <div>
+          <h4>Zero Telemetry</h4>
+          <p>No analytics, no crash reports, no logging to external services. Ever.</p>
+        </div>
+      </div>
+      <div class="privacy-item">
+        <div class="privacy-icon">🔍</div>
+        <div>
+          <h4>Open Source</h4>
+          <p>Every line of code is auditable. MIT licensed — use it, fork it, modify it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>
+    <strong>SpendWise AI</strong> &nbsp;·&nbsp;
+    <a href="https://github.com/surpradhan/spendwise-ai">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://github.com/surpradhan/spendwise-ai/blob/main/LICENSE">MIT License</a>
+  </p>
+  <p style="margin-top: 0.5rem; font-size: 0.78rem;">Built with pandas · plotly · scikit-learn</p>
+</footer>
+
+</body>
+</html>
