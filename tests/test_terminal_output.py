@@ -248,3 +248,65 @@ def test_print_budget_alerts_shows_ok_category_without_warning_symbol(capsys):
     assert "Entertainment" in captured.out
     assert "✗" not in captured.out
     assert "⚠" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# build_summary — currency tracking
+# ---------------------------------------------------------------------------
+
+def test_build_summary_currencies_key_single():
+    df = _categorized_df().copy()
+    df["Currency"] = "USD"
+    summary = build_summary(df)
+    assert "currencies" in summary
+    assert summary["currencies"] == ["USD"]
+
+
+def test_build_summary_currencies_key_no_currency_column_defaults_usd():
+    """DataFrames without a Currency column still get currencies=["USD"]."""
+    summary = build_summary(_categorized_df())
+    assert "currencies" in summary
+    assert summary["currencies"] == ["USD"]
+
+
+def test_build_summary_single_currency_no_currency_totals():
+    df = _categorized_df().copy()
+    df["Currency"] = "USD"
+    summary = build_summary(df)
+    assert "currency_totals" not in summary
+
+
+def test_build_summary_multi_currency_produces_currency_totals():
+    df = _categorized_df().copy()
+    df["Currency"] = ["USD", "USD", "INR", "INR", "USD"]
+    summary = build_summary(df)
+    assert "currency_totals" in summary
+    assert set(summary["currency_totals"].keys()) == {"USD", "INR"}
+
+
+def test_build_summary_currency_totals_has_required_keys():
+    df = _categorized_df().copy()
+    df["Currency"] = ["USD", "USD", "INR", "INR", "USD"]
+    summary = build_summary(df)
+    for cur_data in summary["currency_totals"].values():
+        assert "income" in cur_data
+        assert "expenses" in cur_data
+        assert "net" in cur_data
+
+
+def test_build_summary_multi_currency_aggregate_totals_unchanged():
+    """total_income / total_expenses remain the aggregate across all currencies."""
+    df = _categorized_df().copy()
+    df["Currency"] = ["USD", "USD", "INR", "INR", "USD"]
+    summary_single = build_summary(_categorized_df())
+    summary_multi  = build_summary(df)
+    assert summary_multi["total_income"]   == pytest.approx(summary_single["total_income"])
+    assert summary_multi["total_expenses"] == pytest.approx(summary_single["total_expenses"])
+
+
+def test_build_summary_inr_currency():
+    df = _categorized_df().copy()
+    df["Currency"] = "INR"
+    summary = build_summary(df)
+    assert summary["currencies"] == ["INR"]
+    assert "currency_totals" not in summary

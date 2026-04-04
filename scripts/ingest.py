@@ -5,9 +5,12 @@ Responsible for loading raw bank exports, normalising them into a consistent
 schema, and flagging / removing data-quality issues before downstream processing.
 
 Canonical schema:
-    Date        : str  (YYYY-MM-DD)
+    Date        : str   (YYYY-MM-DD)
     Description : str
-    Amount      : float  (expenses negative, income positive)
+    Amount      : float (expenses negative, income positive)
+    Currency    : str   (ISO-4217 code, optional — defaults to "USD";
+                         set to "INR" by HDFCAdapter; inferred from column
+                         name when possible by GenericAdapter)
 """
 
 from __future__ import annotations
@@ -254,7 +257,11 @@ def prompt_column_mapping(df: pd.DataFrame, missing: list[str]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop rows where (Date, Description, Amount) are identical.
+    """Drop rows where (Date, Description, Amount[, Currency]) are identical.
+
+    The deduplication key includes ``Currency`` when that column is present,
+    so that two transactions with the same date/description/amount in
+    different currencies are NOT collapsed into one row.
 
     Parameters
     ----------
@@ -265,10 +272,12 @@ def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         Deduplicated DataFrame.
     """
+    subset = ["Date", "Description", "Amount"]
+    if "Currency" in df.columns:
+        subset = subset + ["Currency"]
+
     before = len(df)
-    deduped = df.drop_duplicates(subset=["Date", "Description", "Amount"]).reset_index(
-        drop=True
-    )
+    deduped = df.drop_duplicates(subset=subset).reset_index(drop=True)
     removed = before - len(deduped)
     if removed:
         print(f"  ✓ Removed {removed:,} duplicate row(s)")
@@ -400,7 +409,38 @@ def normalize_amounts(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 7. Card number masking
+# 7. Currency column helper
+# ---------------------------------------------------------------------------
+
+def add_currency_column(df: pd.DataFrame, default: str = "USD") -> pd.DataFrame:
+    """Ensure the DataFrame has a ``Currency`` column, filling missing values.
+
+    If ``Currency`` is already present (e.g. set by an adapter), existing
+    values are preserved.  NaN entries are filled with *default*.  If the
+    column is absent entirely, it is created with *default* for all rows.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    default : str
+        ISO-4217 code used when ``Currency`` is absent or NaN
+        (default: ``"USD"``).
+
+    Returns
+    -------
+    pd.DataFrame
+        New DataFrame with ``Currency`` column present and fully populated.
+    """
+    result = df.copy()
+    if "Currency" not in result.columns:
+        result["Currency"] = default
+    else:
+        result["Currency"] = result["Currency"].fillna(default)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 8. Card number masking
 # ---------------------------------------------------------------------------
 
 _CARD_RE = re.compile(r"\b(\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{0,4}|\d{12,16})\b")
@@ -434,16 +474,32 @@ def mask_card_numbers(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# 8. Full ingestion pipeline
+# 9. Full ingestion pipeline
 # ---------------------------------------------------------------------------
 
-def ingest(path: str | Path, interactive: bool = True) -> pd.DataFrame:
+def ingest(
+    path: str | Path,
+    interactive: bool = True,
+    bank_hint: str | None = None,
+    currency_override: str | None = None,
+) -> pd.DataFrame:
     """Run the full ingestion pipeline on a raw bank export.
 
     Steps:
-        load_file → validate_columns → (prompt_column_mapping) →
-        remove_duplicates → normalize_dates → normalize_amounts →
-        mask_card_numbers
+        load_file
+          → detect_adapter (auto or via bank_hint)
+          → adapter.normalize (adds Currency; HDFC also normalises columns)
+          → validate_columns → (fuzzy_match_columns) → (prompt_column_mapping)
+          → remove_duplicates → normalize_dates → normalize_amounts
+          → mask_card_numbers
+          → add_currency_column (safety-net NaN fill)
+
+    For bank-specific adapters (e.g. HDFC), ``normalize()`` produces
+    canonical columns directly, so ``validate_columns`` finds nothing missing
+    and the fuzzy/prompt steps are no-ops.
+
+    For the Generic adapter, ``normalize()`` only appends ``Currency``;
+    all existing column-mapping logic runs unchanged.
 
     Parameters
     ----------
@@ -452,16 +508,34 @@ def ingest(path: str | Path, interactive: bool = True) -> pd.DataFrame:
     interactive : bool
         If True, prompt user for column mappings when columns are missing.
         If False, raise ValueError instead of prompting.
+    bank_hint : str | None
+        Force a specific adapter (e.g. ``"hdfc"``).  Overrides
+        auto-detection.  Raises ``ValueError`` for unknown hints.
+    currency_override : str | None
+        Override the default currency for generic imports
+        (e.g. ``"GBP"``).  Ignored when a bank adapter sets currency
+        automatically (e.g. HDFC always defaults to ``"INR"``).
 
     Returns
     -------
     pd.DataFrame
-        Clean, normalised DataFrame with canonical schema.
+        Clean, normalised DataFrame with canonical schema, including a
+        ``Currency`` column.
     """
+    # Deferred import: scripts.adapters imports scripts.ingest indirectly
+    # through test fixtures and type hints; importing at module level creates
+    # a circular import.  The function-level import breaks the cycle cleanly.
+    from scripts.adapters import detect_adapter
+
     path = Path(path)
     print(f"\n[Ingestion] {path.name}")
 
     df = load_file(path)
+
+    # Select and run the bank adapter
+    adapter = detect_adapter(df, bank_hint=bank_hint)
+    df = adapter.normalize(df, currency_override=currency_override)
+
     missing = validate_columns(df)
 
     if missing:
@@ -487,6 +561,7 @@ def ingest(path: str | Path, interactive: bool = True) -> pd.DataFrame:
     df = normalize_dates(df)
     df = normalize_amounts(df)
     df = mask_card_numbers(df)
+    df = add_currency_column(df, default="USD")
 
     print(f"  ✓ Ingestion complete — {len(df):,} clean rows\n")
     return df

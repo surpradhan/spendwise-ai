@@ -50,7 +50,7 @@ from scripts.ml_classifier import (
     save_model,
     train_model,
 )
-from scripts.terminal_output import build_summary, print_summary, print_recurring, to_json, print_budget_alerts
+from scripts.terminal_output import build_summary, currency_label, print_summary, print_recurring, print_budget_alerts, to_json
 from scripts.recurring import detect_recurring
 from scripts.budget import load_budgets, save_budgets, evaluate_budgets
 
@@ -158,6 +158,27 @@ def _build_parser() -> argparse.ArgumentParser:
             "--set-budget 'Groceries:400' 'Transport:100'"
         ),
     )
+    from scripts.adapters import _BANK_HINTS
+    _known_banks = ", ".join(sorted(_BANK_HINTS))
+    parser.add_argument(
+        "--bank",
+        metavar="HINT",
+        default=None,
+        help=(
+            f"Force a specific bank adapter, e.g. --bank hdfc. "
+            f"Overrides auto-detection. Known values: {_known_banks}."
+        ),
+    )
+    parser.add_argument(
+        "--currency",
+        metavar="CODE",
+        default=None,
+        help=(
+            "Set the default currency for generic imports, e.g. --currency GBP. "
+            "Ignored when a bank adapter sets currency automatically "
+            "(e.g. HDFC always uses INR)."
+        ),
+    )
 
     return parser
 
@@ -177,7 +198,12 @@ def run(args: argparse.Namespace) -> None:
     threshold     = ml_config.get("confidence_threshold", 0.70)
 
     # ── 1. Ingest ─────────────────────────────────────────────────────────
-    df = ingest(input_path, interactive=interactive)
+    df = ingest(
+        input_path,
+        interactive=interactive,
+        bank_hint=getattr(args, "bank", None),
+        currency_override=getattr(args, "currency", None),
+    )
 
     # ── 2. Classify (keywords first, ML for remainders) ───────────────────
     print("[Classifier]")
@@ -272,8 +298,9 @@ def run(args: argparse.Namespace) -> None:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
-        print_recurring(recurring_df)
-        print_budget_alerts(budget_alerts)
+        cur_sym = currency_label(summary.get("currencies", ["USD"])[0])
+        print_recurring(recurring_df, currency_sym=cur_sym)
+        print_budget_alerts(budget_alerts, currency_sym=cur_sym)
 
     if args.output_json:
         out = Path(args.output_json)
