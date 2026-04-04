@@ -541,6 +541,104 @@ def build_budget_chart(df: pd.DataFrame, budgets: dict[str, float]) -> go.Figure
 
 
 # ---------------------------------------------------------------------------
+# Anomaly scatter chart
+# ---------------------------------------------------------------------------
+
+def build_anomaly_chart(
+    df: pd.DataFrame,
+    anomaly_df: pd.DataFrame | None = None,
+) -> go.Figure:
+    """Scatter plot highlighting statistically anomalous expense transactions.
+
+    All expense transactions are plotted as small markers; anomalous rows
+    are overlaid as larger star markers in a contrasting colour.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must have columns: Date, Description, Amount, Category.
+    anomaly_df : pd.DataFrame | None, optional
+        Pre-computed anomaly DataFrame as returned by
+        :func:`scripts.anomaly.detect_anomalies`.  When ``None``,
+        anomaly detection is run internally.  Pass a pre-computed result
+        to avoid redundant computation when :func:`build_dashboard` is
+        called alongside terminal anomaly reporting.
+
+    Returns
+    -------
+    go.Figure
+    """
+    if anomaly_df is None:
+        from scripts.anomaly import detect_anomalies
+        anomaly_df = detect_anomalies(df)
+
+    expense_abs = df[df["Amount"] < 0]["Amount"].abs()
+    expenses    = df[df["Amount"] < 0].copy()
+    label       = _get_currency_label(df)
+
+    fig = go.Figure()
+
+    # Background: all expense transactions
+    fig.add_trace(
+        go.Scatter(
+            x=pd.to_datetime(expenses["Date"]),
+            y=expense_abs,
+            mode="markers",
+            name="Normal",
+            marker=dict(color="#4361EE", size=6, opacity=0.45),
+            customdata=list(
+                zip(expenses["Description"].str[:35], expenses["Category"])
+            ),
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                f"{label}%{{y:,.2f}}<br>"
+                "Category: %{customdata[1]}<extra></extra>"
+            ),
+        )
+    )
+
+    if not anomaly_df.empty:
+        anomaly_abs = anomaly_df["Amount"].abs()
+        fig.add_trace(
+            go.Scatter(
+                x=pd.to_datetime(anomaly_df["Date"]),
+                y=anomaly_abs,
+                mode="markers",
+                name="Anomaly",
+                marker=dict(
+                    color="#F72585",
+                    size=14,
+                    symbol="star",
+                    line=dict(color="white", width=1),
+                ),
+                customdata=list(
+                    zip(anomaly_df["Description"].str[:35], anomaly_df["Z_Score"])
+                ),
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    f"{label}%{{y:,.2f}}<br>"
+                    "Z-score: %{customdata[1]:.2f}<extra></extra>"
+                ),
+            )
+        )
+
+    n_flagged = len(anomaly_df)
+    status    = f"{n_flagged} flagged" if n_flagged else "none flagged"
+    fig.update_layout(
+        title=dict(
+            text=f"Anomaly Detection ({status})",
+            font=dict(size=16),
+        ),
+        xaxis=dict(title="Date", showgrid=True, gridcolor="#f0f0f0"),
+        yaxis=dict(title=f"Amount ({label})", showgrid=True, gridcolor="#f0f0f0"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=80, b=60, l=80, r=20),
+        plot_bgcolor="white",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Dashboard assembly & export
 # ---------------------------------------------------------------------------
 
@@ -565,12 +663,16 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     str
         Complete HTML document with embedded Plotly JS.
     """
+    from scripts.anomaly import detect_anomalies as _detect_anomalies
+    _anomaly_df = _detect_anomalies(df)
+
     donut     = build_donut_chart(df)
     trend     = build_monthly_trend(df)
     merch     = build_top_merchants(df)
     grouped   = build_income_vs_expenses(df)
     table     = build_uncategorized_table(df)
     recurring = build_recurring_table(df)
+    anomaly   = build_anomaly_chart(df, anomaly_df=_anomaly_df)
 
     dates = pd.to_datetime(df["Date"])
     start = dates.min().strftime("%Y-%m-%d")
@@ -605,6 +707,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     grouped_div   = _div(grouped)
     table_div     = _div(table)
     recurring_div = _div(recurring)
+    anomaly_div   = _div(anomaly)
 
     # Optional budget card (7th card) — only when budgets provided and non-empty
     budget_card_html = ""
@@ -707,6 +810,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     <div class="card">{grouped_div}</div>
     <div class="card full-width">{table_div}</div>
     <div class="card full-width">{recurring_div}</div>
+    <div class="card full-width">{anomaly_div}</div>
 {budget_card_html}
   </div>
 

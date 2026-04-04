@@ -343,7 +343,55 @@ def print_budget_alerts(alerts: list[dict], currency_sym: str = "$") -> None:
 
 
 # ---------------------------------------------------------------------------
-# 5. JSON serialisation
+# 5. Anomaly report printer
+# ---------------------------------------------------------------------------
+
+def print_anomaly_report(anomaly_df: pd.DataFrame, currency_sym: str = "$") -> None:
+    """Print a flagged-anomaly summary to stdout.
+
+    No-op when *anomaly_df* is empty.
+
+    Parameters
+    ----------
+    anomaly_df : pd.DataFrame
+        As returned by :func:`scripts.anomaly.detect_anomalies`.
+        Expected columns: Date, Description, Amount, Category,
+        Anomaly_Type, Z_Score.
+    currency_sym : str
+        Currency symbol to prefix amounts.  Defaults to ``"$"``.
+    """
+    if anomaly_df.empty:
+        return
+
+    W   = 54
+    sep = "═" * W
+
+    print(f"\n{sep}")
+    print(" SpendWise AI — Anomaly Report")
+    print(sep)
+    print(f"  {len(anomaly_df)} unusual transaction(s) detected (z-score > threshold)")
+    print(f" {'─' * W}")
+
+    desc_w = min(
+        max((len(str(r)) for r in anomaly_df["Description"]), default=12),
+        36,
+    )
+
+    for _, row in anomaly_df.iterrows():
+        desc   = _mask_residual(str(row["Description"]))[:desc_w]
+        amount = abs(float(row["Amount"]))
+        z      = float(row["Z_Score"])
+        cat    = row["Category"]
+        print(
+            f"  {desc:<{desc_w}}  {currency_sym}{amount:>9,.2f}"
+            f"  z={z:.2f}  [{cat}]"
+        )
+
+    print(f"{sep}\n")
+
+
+# ---------------------------------------------------------------------------
+# 6. JSON serialisation
 # ---------------------------------------------------------------------------
 
 def to_json(summary: dict) -> str:
