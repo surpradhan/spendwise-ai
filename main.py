@@ -193,9 +193,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Execute a natural-language query against the classified transactions "
-            "and print the result.  "
-            "Examples: 'show groceries', 'top 5', 'sum transport last 3 months', "
-            "'monthly food & drink', 'search amazon', 'categories'."
+            "and print the result. Category names must match exactly — run "
+            "'categories' first to see available names. "
+            "Examples: 'categories', 'show groceries', 'top 5', "
+            "'sum groceries last 3 months', 'search amazon'."
         ),
     )
 
@@ -345,7 +346,7 @@ def run(args: argparse.Namespace) -> None:
         out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  ✓ JSON summary saved → '{out}'")
 
-    # ── 11. Dashboard / PDF ───────────────────────────────────────────────
+    # ── 10. Dashboard / PDF ───────────────────────────────────────────────
     if args.dashboard:
         from scripts.dashboard import export_dashboard
         export_dashboard(df, Path(args.exports_dir), budgets=budgets)

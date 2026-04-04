@@ -144,7 +144,6 @@ def detect_anomalies(
 
     result = (
         pd.DataFrame(anomaly_rows, columns=_RETURN_COLS)
-        .drop_duplicates(subset=["Date", "Description", "Amount"])
         .sort_values("Z_Score", ascending=False)
         .reset_index(drop=True)
     )

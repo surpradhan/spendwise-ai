@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.dashboard import build_budget_chart, build_dashboard, export_pdf
+from scripts.dashboard import build_budget_chart, build_anomaly_chart, build_dashboard, export_pdf
 
 
 # ---------------------------------------------------------------------------
@@ -174,3 +174,36 @@ def test_build_dashboard_no_budget_card_when_budgets_empty(classified_df):
     html_with_budget = build_dashboard(classified_df, budgets={"Groceries": 200.0})
     # Dashboard with budgets should be larger (extra card HTML)
     assert len(html_with_budget) > len(html_no_budget)
+
+
+# ---------------------------------------------------------------------------
+# build_anomaly_chart — no mutation
+# ---------------------------------------------------------------------------
+
+def test_build_anomaly_chart_does_not_mutate_anomaly_df(classified_df):
+    """build_anomaly_chart must not add columns to a pre-computed anomaly_df."""
+    from scripts.anomaly import detect_anomalies
+    anomaly_df      = detect_anomalies(classified_df)
+    cols_before     = list(anomaly_df.columns)
+    _               = build_anomaly_chart(classified_df, anomaly_df=anomaly_df)
+    assert list(anomaly_df.columns) == cols_before, (
+        "build_anomaly_chart mutated the passed-in anomaly_df "
+        f"(added columns: {set(anomaly_df.columns) - set(cols_before)})"
+    )
+
+
+def test_build_anomaly_chart_does_not_mutate_df(classified_df):
+    """build_anomaly_chart must not add columns to the main transaction df."""
+    cols_before = list(classified_df.columns)
+    _           = build_anomaly_chart(classified_df)
+    assert list(classified_df.columns) == cols_before
+
+
+def test_build_anomaly_chart_accepts_precomputed_anomaly_df(classified_df):
+    """Passing a pre-computed anomaly_df produces the same figure as computing internally."""
+    from scripts.anomaly import detect_anomalies
+    anomaly_df  = detect_anomalies(classified_df)
+    fig_pre     = build_anomaly_chart(classified_df, anomaly_df=anomaly_df)
+    fig_auto    = build_anomaly_chart(classified_df)
+    # Both should produce valid figures; title text is identical
+    assert fig_pre.layout.title.text == fig_auto.layout.title.text

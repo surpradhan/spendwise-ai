@@ -208,6 +208,40 @@ def test_last_n_months_anchored_to_data_not_today():
 
 
 # ---------------------------------------------------------------------------
+# _filter_by_category — exact match semantics
+# ---------------------------------------------------------------------------
+
+def test_show_partial_name_does_not_match():
+    """'show food' must NOT match the category 'Food & Drink' — exact match only."""
+    result = execute_query("show food", _make_df())
+    assert "no transactions found" in result.lower()
+
+
+def test_show_exact_multiword_category_matches():
+    """'show food & drink' matches 'Food & Drink' exactly (case-insensitive)."""
+    result = execute_query("show food & drink", _make_df())
+    assert "Uber Eats" in result
+
+
+# ---------------------------------------------------------------------------
+# _filter_last_n_months — empty DataFrame edge case
+# ---------------------------------------------------------------------------
+
+def test_last_n_months_on_empty_df_returns_empty():
+    """An empty-scoped result from date filtering should not crash."""
+    # Use explicit dtypes to match the canonical schema; bare columns= gives
+    # object dtype which breaks nsmallest on the Amount column.
+    empty_df = pd.DataFrame({
+        "Date":        pd.Series([], dtype="str"),
+        "Description": pd.Series([], dtype="str"),
+        "Amount":      pd.Series([], dtype="float64"),
+        "Category":    pd.Series([], dtype="str"),
+    })
+    result = execute_query("top 5 last 3 months", empty_df)
+    assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
 # Fallback / unknown query
 # ---------------------------------------------------------------------------
 

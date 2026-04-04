@@ -50,6 +50,10 @@ def _filter_last_n_months(df: pd.DataFrame, n: int) -> pd.DataFrame:
     The cutoff is computed relative to the latest transaction date present
     in *df* — not today's date — so results are reproducible regardless of
     when the query is run.
+
+    When *df* is empty, ``dates.max()`` returns ``NaT``; the comparison
+    ``dates > NaT`` evaluates to all-False and an empty DataFrame is
+    returned correctly.
     """
     dates  = pd.to_datetime(df["Date"])
     cutoff = dates.max() - pd.DateOffset(months=n)
@@ -179,7 +183,11 @@ def execute_query(query: str, df: pd.DataFrame, currency_sym: str = "$") -> str:
 # ---------------------------------------------------------------------------
 
 def _fmt_transactions(df: pd.DataFrame, title: str, currency_sym: str) -> str:
-    """Return a formatted table of transactions."""
+    """Return a formatted table of transactions.
+
+    All rows in *df* are shown, including positive amounts (refunds, income
+    tagged to a category).  Signs are rendered explicitly as ``-``/``+``.
+    """
     if df.empty:
         return f"{title}\n  (no transactions found)"
 

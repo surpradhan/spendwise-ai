@@ -572,11 +572,9 @@ def build_anomaly_chart(
         from scripts.anomaly import detect_anomalies
         anomaly_df = detect_anomalies(df)
 
-    anomalies = anomaly_df
-
-    expenses = df[df["Amount"] < 0].copy()
-    expenses["_abs"] = expenses["Amount"].abs()
-    label = _get_currency_label(df)
+    expense_abs = df[df["Amount"] < 0]["Amount"].abs()
+    expenses    = df[df["Amount"] < 0].copy()
+    label       = _get_currency_label(df)
 
     fig = go.Figure()
 
@@ -584,7 +582,7 @@ def build_anomaly_chart(
     fig.add_trace(
         go.Scatter(
             x=pd.to_datetime(expenses["Date"]),
-            y=expenses["_abs"],
+            y=expense_abs,
             mode="markers",
             name="Normal",
             marker=dict(color="#4361EE", size=6, opacity=0.45),
@@ -599,12 +597,12 @@ def build_anomaly_chart(
         )
     )
 
-    if not anomalies.empty:
-        anomalies["_abs"] = anomalies["Amount"].abs()
+    if not anomaly_df.empty:
+        anomaly_abs = anomaly_df["Amount"].abs()
         fig.add_trace(
             go.Scatter(
-                x=pd.to_datetime(anomalies["Date"]),
-                y=anomalies["_abs"],
+                x=pd.to_datetime(anomaly_df["Date"]),
+                y=anomaly_abs,
                 mode="markers",
                 name="Anomaly",
                 marker=dict(
@@ -614,7 +612,7 @@ def build_anomaly_chart(
                     line=dict(color="white", width=1),
                 ),
                 customdata=list(
-                    zip(anomalies["Description"].str[:35], anomalies["Z_Score"])
+                    zip(anomaly_df["Description"].str[:35], anomaly_df["Z_Score"])
                 ),
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>"
@@ -624,7 +622,7 @@ def build_anomaly_chart(
             )
         )
 
-    n_flagged = len(anomalies)
+    n_flagged = len(anomaly_df)
     status    = f"{n_flagged} flagged" if n_flagged else "none flagged"
     fig.update_layout(
         title=dict(
