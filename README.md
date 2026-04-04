@@ -24,16 +24,17 @@
 
 ```mermaid
 flowchart LR
-    A([("Bank Export\nCSV · XLSX")]) --> B["🔍 Ingest\n& Normalise\n━━━━━━━━\nencoding · dates\nPII masking"]
+    A[/"Bank Export\nCSV / XLSX"/] --> B["Ingest and Normalise\nencoding, dates, PII masking"]
     B --> C{Classify}
-    C -->|"keyword pass"| D["🏷️ Keyword\nRules"]
-    C -->|"remaining rows"| E["🤖 ML Model\nTF-IDF + LR"]
-    D & E --> F[/"Categorised\nDataFrame"/]
-    F --> G["📊 HTML\nDashboard"]
-    F --> H["📄 PDF\nReport"]
-    F --> I["🔁 Recurring\nDetector"]
-    F --> J["💰 Budget\nAlerts"]
-    F --> K["{ } JSON\nOutput"]
+    C -->|keyword pass| D["Keyword Rules"]
+    C -->|remaining rows| E["ML Model\nTF-IDF + LR"]
+    D --> F["Categorised DataFrame"]
+    E --> F
+    F --> G["HTML Dashboard"]
+    F --> H["PDF Report"]
+    F --> I["Recurring Detector"]
+    F --> J["Budget Alerts"]
+    F --> K["JSON Output"]
 ```
 
 ---
