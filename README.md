@@ -16,7 +16,9 @@
 | **Auto-categorises transactions** | Keyword rules with an ML fallback (TF-IDF + logistic regression) that learns from your history |
 | **Detects recurring charges** | Subscriptions and regular payments flagged without any configuration |
 | **Budget tracking & alerts** | Set monthly limits per category; get warned at 80 % and 100 % |
-| **Interactive HTML dashboard** | 7 charts — donut, trend, top merchants, income vs expenses, and more — fully offline |
+| **Anomaly detection** | Flags unusual transactions via modified z-score (median + MAD); per-category with global fallback for singletons |
+| **Natural language queries** | Ask questions in plain English: `show groceries`, `top 5 last 3 months`, `sum food & drink` |
+| **Interactive HTML dashboard** | 8 charts — donut, trend, top merchants, income vs expenses, anomaly scatter, and more — fully offline |
 | **PDF report** | Multi-page export for archiving or sharing |
 | **Pipe-friendly JSON mode** | `--json --no-feedback` for scripting and automation |
 
@@ -33,11 +35,13 @@ flowchart LR
     D -->|remaining rows| F["ML Model\nTF-IDF + LR"]
     E --> G["Categorised DataFrame"]
     F --> G
-    G --> H["HTML Dashboard"]
+    G --> H["HTML Dashboard\n(8 charts incl. anomaly)"]
     G --> I["PDF Report"]
     G --> J["Recurring Detector"]
     G --> K["Budget Alerts"]
     G --> L["JSON Output"]
+    G --> M["Anomaly Detection\n--anomalies"]
+    G --> N["NL Query Engine\n--query '...'"]
 ```
 
 ---
@@ -79,6 +83,14 @@ python main.py --file data/raw/export.csv --set-budget "Groceries:400" "Transpor
 
 # Retrain the ML classifier from your entire labelled history
 python main.py --file data/raw/export.csv --retrain-ml
+
+# Detect unusual transactions (modified z-score per category)
+python main.py --file data/raw/export.csv --anomalies
+
+# Ask a natural language question about your spending
+python main.py --file data/raw/export.csv --query "show groceries"
+python main.py --file data/raw/export.csv --query "top 5 last 3 months"
+python main.py --file data/raw/export.csv --query "categories"
 ```
 
 ---
@@ -96,6 +108,8 @@ python main.py --file data/raw/export.csv --retrain-ml
 | `--output-json PATH` | Write JSON summary to a file |
 | `--no-feedback` | Skip interactive review (for scripting) |
 | `--retrain-ml` | Retrain ML classifier after this run |
+| `--anomalies` | Print anomaly report (unusual transactions flagged by modified z-score) |
+| `--query QUERY` | Run a natural language query and print the result (run `categories` first to see available categories) |
 | `--set-budget CAT:AMT` | Set one or more monthly budget limits |
 | `--keywords PATH` | Custom `keywords.json` path |
 | `--budgets PATH` | Custom `budgets.json` path |
@@ -160,6 +174,8 @@ spendwise-ai/
 │   ├── ml_classifier.py       # ML classifier (TF-IDF + logistic regression)
 │   ├── recurring.py           # Recurring transaction detector
 │   ├── budget.py              # Budget targets & alerts
+│   ├── anomaly.py             # Anomaly detection (modified z-score)
+│   ├── nl_query.py            # Natural language query engine
 │   ├── dashboard.py           # Plotly HTML + PDF dashboard
 │   └── terminal_output.py     # Terminal & JSON summary
 ├── config/
