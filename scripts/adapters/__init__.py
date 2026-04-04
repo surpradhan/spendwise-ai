@@ -78,14 +78,15 @@ def detect_adapter(
         if adapter_cls is None:
             known = ", ".join(sorted(_BANK_HINTS))
             raise ValueError(
-                f"Unknown bank hint '{bank_hint}'. Known values: {known}."
+                f"Unknown bank hint '{bank_hint}'. Known values: {known}. "
+                "Omit --bank to use auto-detection (GenericAdapter is the fallback)."
             )
         print(f"  ↳ Bank adapter: {adapter_cls.name} (forced via --bank)")
         return adapter_cls()
 
     for adapter_cls in _REGISTRY:
         if adapter_cls.detect(df_raw):
-            if adapter_cls.name != "Generic":
+            if adapter_cls is not GenericAdapter:
                 print(f"  ↳ Bank adapter: {adapter_cls.name} (auto-detected)")
             return adapter_cls()
 

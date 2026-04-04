@@ -138,7 +138,7 @@ _CURRENCY_SYMBOLS: dict[str, str] = {
 }
 
 
-def _currency_label(code: str) -> str:
+def currency_label(code: str) -> str:
     """Return a display symbol for a currency code, or the code itself.
 
     Parameters
@@ -182,7 +182,7 @@ def print_summary(summary: dict) -> None:
     thin = "─" * W
 
     currencies = summary.get("currencies", ["USD"])
-    sym = _currency_label(currencies[0])
+    sym = currency_label(currencies[0])
 
     print(f"\n{sep}")
     print(" SpendWise AI — Spending Summary")
@@ -208,7 +208,7 @@ def print_summary(summary: dict) -> None:
         print(f"\n {'Per-Currency Breakdown'}")
         print(f" {thin}")
         for cur, totals in summary["currency_totals"].items():
-            csym = _currency_label(cur)
+            csym = currency_label(cur)
             print(f"  {cur}  Income: {csym}{totals['income']:,.2f}  "
                   f"Expenses: {csym}{totals['expenses']:,.2f}  "
                   f"Net: {csym}{totals['net']:,.2f}")
@@ -289,7 +289,7 @@ def print_recurring(recurring_df: pd.DataFrame, currency_sym: str = "$") -> None
 # 4. Budget alerts printer
 # ---------------------------------------------------------------------------
 
-def print_budget_alerts(alerts: list[dict]) -> None:
+def print_budget_alerts(alerts: list[dict], currency_sym: str = "$") -> None:
     """Print monthly budget alert summary to stdout.
 
     No-op when *alerts* is empty.
@@ -300,6 +300,9 @@ def print_budget_alerts(alerts: list[dict]) -> None:
         As returned by :func:`scripts.budget.evaluate_budgets`.
         Each dict must have keys: category, budget, monthly_avg, pct_used,
         status, num_months.
+    currency_sym : str
+        Currency symbol to prefix amounts (e.g. ``"$"``, ``"₹"``).
+        Defaults to ``"$"`` for backward compatibility.
     """
     if not alerts:
         return
@@ -332,7 +335,7 @@ def print_budget_alerts(alerts: list[dict]) -> None:
                 symbol = ""
 
         print(
-            f"  {cat:<{col_w}}  ${monthly:>8,.2f} / ${budget:>8,.2f}"
+            f"  {cat:<{col_w}}  {currency_sym}{monthly:>8,.2f} / {currency_sym}{budget:>8,.2f}"
             f"   {bar}  {pct:5.1f}%{symbol}"
         )
 

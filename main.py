@@ -50,7 +50,7 @@ from scripts.ml_classifier import (
     save_model,
     train_model,
 )
-from scripts.terminal_output import build_summary, print_summary, print_recurring, to_json, print_budget_alerts
+from scripts.terminal_output import build_summary, currency_label, print_summary, print_recurring, print_budget_alerts, to_json
 from scripts.recurring import detect_recurring
 from scripts.budget import load_budgets, save_budgets, evaluate_budgets
 
@@ -158,13 +158,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "--set-budget 'Groceries:400' 'Transport:100'"
         ),
     )
+    from scripts.adapters import _BANK_HINTS
+    _known_banks = ", ".join(sorted(_BANK_HINTS))
     parser.add_argument(
         "--bank",
         metavar="HINT",
         default=None,
         help=(
-            "Force a specific bank adapter, e.g. --bank hdfc. "
-            "Overrides auto-detection. Known values: hdfc."
+            f"Force a specific bank adapter, e.g. --bank hdfc. "
+            f"Overrides auto-detection. Known values: {_known_banks}."
         ),
     )
     parser.add_argument(
@@ -296,10 +298,9 @@ def run(args: argparse.Namespace) -> None:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
-        from scripts.terminal_output import _currency_label
-        cur_sym = _currency_label(summary.get("currencies", ["USD"])[0])
+        cur_sym = currency_label(summary.get("currencies", ["USD"])[0])
         print_recurring(recurring_df, currency_sym=cur_sym)
-        print_budget_alerts(budget_alerts)
+        print_budget_alerts(budget_alerts, currency_sym=cur_sym)
 
     if args.output_json:
         out = Path(args.output_json)

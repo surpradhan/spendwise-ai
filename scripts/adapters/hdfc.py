@@ -47,6 +47,17 @@ class HDFCAdapter(BankAdapter):
     #: Lowercase key used with the ``--bank`` CLI flag (e.g. ``--bank hdfc``).
     hint_key = "hdfc"
 
+    @staticmethod
+    def _to_float(series: pd.Series) -> pd.Series:
+        """Parse an HDFC amount column: strip commas, coerce empty/nan → 0.0."""
+        return (
+            series.astype(str)
+            .str.strip()
+            .str.replace(",", "", regex=False)
+            .replace({"": "0", "nan": "0"})
+            .astype(float)
+        )
+
     @classmethod
     def detect(cls, df_raw: pd.DataFrame) -> bool:
         """Return True when HDFC-specific columns are all present.
@@ -104,18 +115,8 @@ class HDFCAdapter(BankAdapter):
             description = narration
 
         # 3. Build signed Amount (deposit = +, withdrawal = -)
-        def _to_float(series: pd.Series) -> pd.Series:
-            """Parse amount column: strip commas, coerce empty → 0.0."""
-            return (
-                series.astype(str)
-                .str.strip()
-                .str.replace(",", "", regex=False)
-                .replace({"": "0", "nan": "0"})
-                .astype(float)
-            )
-
-        deposit    = _to_float(df["Deposit Amt."])
-        withdrawal = _to_float(df["Withdrawal Amt."])
+        deposit    = self._to_float(df["Deposit Amt."])
+        withdrawal = self._to_float(df["Withdrawal Amt."])
         amount     = deposit - withdrawal
 
         # 4. Parse Date (DD/MM/YY or DD/MM/YYYY → YYYY-MM-DD)

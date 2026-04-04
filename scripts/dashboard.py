@@ -16,6 +16,7 @@ Views
 
 from __future__ import annotations
 
+import html as _html
 from pathlib import Path
 
 import pandas as pd
@@ -583,7 +584,6 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     )
     multi_currency_banner = ""
     if len(currencies) > 1:
-        import html as _html
         # Escape each code individually to prevent XSS via a crafted --currency flag
         codes = ", ".join(_html.escape(str(c)) for c in currencies)
         multi_currency_banner = (

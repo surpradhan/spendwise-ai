@@ -118,6 +118,9 @@ def test_hdfc_normalize_deposit_is_positive():
 
 def test_hdfc_normalize_amount_with_comma_separator():
     df = _make_hdfc_raw()
+    # Cast to object before assigning a string to avoid pandas FutureWarning
+    # about setting incompatible dtype on a float64 column.
+    df["Withdrawal Amt."] = df["Withdrawal Amt."].astype(object)
     df.loc[0, "Withdrawal Amt."] = "1,500.00"
     df.loc[0, "Deposit Amt."]    = 0.0
     result = HDFCAdapter().normalize(df)
@@ -126,6 +129,8 @@ def test_hdfc_normalize_amount_with_comma_separator():
 
 def test_hdfc_normalize_empty_withdrawal_treated_as_zero():
     df = _make_hdfc_raw()
+    # Cast to object before assigning an empty string to avoid pandas FutureWarning.
+    df["Withdrawal Amt."] = df["Withdrawal Amt."].astype(object)
     df.loc[0, "Withdrawal Amt."] = ""
     df.loc[0, "Deposit Amt."]    = 200.0
     result = HDFCAdapter().normalize(df)
