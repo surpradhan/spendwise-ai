@@ -1,5 +1,0 @@
-{
-  "confidence_threshold": 0.70,
-  "min_training_samples": 20,
-  "model_dir": "models"
-}
