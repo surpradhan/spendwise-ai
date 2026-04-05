@@ -53,9 +53,16 @@ flowchart LR
 # 1. Install
 pip install -r requirements.txt
 
-# 2. Drop your bank export into data/raw/, then run
+# 2. Set up config files from the provided examples (one-time)
+cp config/keywords.example.json config/keywords.json
+cp config/budgets.example.json config/budgets.json
+cp config/ml_config.example.json config/ml_config.json
+
+# 3. Drop your bank export into data/raw/, then run
 python main.py --file data/raw/export.csv --dashboard
 ```
+
+> `config/*.json` and `data/raw/` are gitignored — your keywords, budgets, and bank exports stay local.
 
 Your dashboard is saved to `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html` — open it in any browser, no server needed.
 
@@ -224,8 +231,9 @@ spendwise-ai/
 │   ├── dashboard.py           # Plotly HTML + PDF dashboard
 │   └── terminal_output.py     # Terminal & JSON summary
 ├── config/
-│   ├── keywords.json          # Category → keyword mapping (edit this)
-│   ├── budgets.json           # Category → monthly limit (edit this)
-│   └── ml_config.json         # ML settings (confidence threshold)
+│   ├── keywords.example.json  # Starter keyword list — copy to keywords.json
+│   ├── budgets.example.json   # Example budget limits — copy to budgets.json
+│   ├── ml_config.example.json # ML settings — copy to ml_config.json
+│   └── *.json                 # Your actual config (gitignored)
 └── models/                    # Trained ML model (git-ignored, auto-generated)
 ```
