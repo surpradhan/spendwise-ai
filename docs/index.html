@@ -363,6 +363,21 @@
         <p>Multi-page PDF export for archiving or sharing. Same charts as the dashboard, rendered to static images via kaleido + reportlab.</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon">🚨</div>
+        <h3>Anomaly Detection</h3>
+        <p>Flags unusual transactions using the Iglewicz &amp; Hoaglin modified z-score (median + MAD). Per-category detection with a global fallback for sparse categories.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Natural Language Queries</h3>
+        <p>Ask plain-English questions about your data: <code>top 5 last 3 months</code>, <code>show groceries</code>, <code>sum food &amp; drink</code>. No SQL, no setup.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Local Web UI</h3>
+        <p>Run <code>python app.py</code> and open <code>localhost:8000</code>. Upload a file, view your summary, run NL queries, and launch the dashboard — no terminal required.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">⚙️</div>
         <h3>Pipe-Friendly JSON Mode</h3>
         <p><code>--json --no-feedback</code> outputs a structured JSON summary — easy to pipe into other tools, scripts, or cron jobs.</p>
@@ -441,6 +456,10 @@
       <div>&nbsp;</div>
       <div><span class="c"># Retrain ML model from your labelled history</span></div>
       <div><span class="kw">python</span> main.py --file data/raw/export.csv --retrain-ml</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># Or use the browser-based Web UI (no terminal needed)</span></div>
+      <div><span class="kw">pip install</span> fastapi uvicorn python-multipart</div>
+      <div><span class="kw">python</span> app.py  <span class="c"># → open http://localhost:8000</span></div>
     </div>
     <p style="margin-top:1.25rem; color: var(--muted); font-size: 0.88rem;">
       Supported formats: <strong style="color:var(--text)">CSV, XLSX, XLS</strong> &nbsp;·&nbsp;

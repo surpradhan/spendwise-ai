@@ -19,6 +19,7 @@
 | **Anomaly detection** | Flags unusual transactions via modified z-score (median + MAD); per-category with global fallback for singletons |
 | **Natural language queries** | Ask questions in plain English: `show groceries`, `top 5 last 3 months`, `sum food & drink` |
 | **Interactive HTML dashboard** | 8 charts — donut, trend, top merchants, income vs expenses, anomaly scatter, and more — fully offline |
+| **Web UI** | Browser-based interface via `app.py` — upload a file, view results, run NL queries, and open the dashboard without touching the terminal |
 | **PDF report** | Multi-page export for archiving or sharing |
 | **Pipe-friendly JSON mode** | `--json --no-feedback` for scripting and automation |
 
@@ -57,6 +58,18 @@ python main.py --file data/raw/export.csv --dashboard
 ```
 
 Your dashboard is saved to `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html` — open it in any browser, no server needed.
+
+### Web UI (optional)
+
+A local browser interface is available if you prefer not to use the terminal:
+
+```bash
+pip install fastapi uvicorn python-multipart
+python app.py
+# Open http://localhost:8000
+```
+
+Upload any CSV or XLSX directly from the browser. Results, NL queries, and the full Plotly dashboard are all accessible from the same page. All processing stays local — `app.py` is just a thin wrapper around the same pipeline as `main.py`.
 
 **Supported formats:** `.csv`, `.xlsx`, `.xls`
 **Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
@@ -152,6 +165,9 @@ After adding new categories, run `--retrain-ml` so the ML model picks them up.
 | `chardet ≥ 5.2` | Encoding detection |
 | `kaleido ≥ 0.2.1` | Static PNG rendering (PDF charts) |
 | `reportlab ≥ 4.0` | PDF assembly |
+| `fastapi` | Web UI server *(optional — only needed for `app.py`)* |
+| `uvicorn` | ASGI server for the Web UI *(optional)* |
+| `python-multipart` | File upload support for the Web UI *(optional)* |
 
 ---
 
@@ -160,6 +176,9 @@ After adding new categories, run `--retrain-ml` so the ML model picks them up.
 ```
 spendwise-ai/
 ├── main.py                    # CLI entry point
+├── app.py                     # Web UI (FastAPI + uvicorn)
+├── templates/
+│   └── index.html             # Single-page frontend for the Web UI
 ├── data/raw/                  # Drop raw bank exports here
 ├── data/processed/            # Cleaned, categorised CSVs (auto-generated)
 ├── exports/                   # Dashboards and PDF reports (auto-generated)

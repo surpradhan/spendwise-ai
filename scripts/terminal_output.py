@@ -391,7 +391,132 @@ def print_anomaly_report(anomaly_df: pd.DataFrame, currency_sym: str = "$") -> N
 
 
 # ---------------------------------------------------------------------------
-# 6. JSON serialisation
+# 6. Month-over-month comparison
+# ---------------------------------------------------------------------------
+
+def build_mom_comparison(df: pd.DataFrame) -> dict:
+    """Compute month-over-month spend change per category.
+
+    Compares the two most recent calendar months present in *df*.  Only
+    expense rows (Amount < 0) are included.  Categories that appear in
+    only one of the two months are included with the missing month as 0.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must have columns: Date, Amount, Category.
+
+    Returns
+    -------
+    dict with keys:
+        current_month  : str          (YYYY-MM, the more recent month)
+        previous_month : str          (YYYY-MM, the month before)
+        changes        : list[dict]   sorted by abs pct_change descending
+            Each entry has: category, current, previous, diff, pct_change.
+            pct_change is None when previous spend is 0 (new category).
+    """
+    expenses = df[df["Amount"] < 0].copy()
+    expenses["_month"] = pd.to_datetime(expenses["Date"]).dt.to_period("M").astype(str)
+
+    months = sorted(expenses["_month"].unique())
+    if len(months) < 2:
+        return {"current_month": months[-1] if months else "", "previous_month": "", "changes": []}
+
+    current_month  = months[-1]
+    previous_month = months[-2]
+
+    cur_totals  = (
+        expenses[expenses["_month"] == current_month]
+        .groupby("Category")["Amount"].sum().abs()
+    )
+    prev_totals = (
+        expenses[expenses["_month"] == previous_month]
+        .groupby("Category")["Amount"].sum().abs()
+    )
+
+    all_cats = sorted(set(cur_totals.index) | set(prev_totals.index))
+    changes = []
+    for cat in all_cats:
+        cur  = float(cur_totals.get(cat, 0.0))
+        prev = float(prev_totals.get(cat, 0.0))
+        diff = cur - prev
+        pct  = ((diff / prev) * 100) if prev != 0 else None
+        changes.append({
+            "category":   cat,
+            "current":    round(cur, 2),
+            "previous":   round(prev, 2),
+            "diff":       round(diff, 2),
+            "pct_change": round(pct, 1) if pct is not None else None,
+        })
+
+    # Sort by absolute pct change descending; new-category rows (pct=None) go last
+    changes.sort(key=lambda x: abs(x["pct_change"]) if x["pct_change"] is not None else -1, reverse=True)
+
+    return {
+        "current_month":  current_month,
+        "previous_month": previous_month,
+        "changes":        changes,
+    }
+
+
+def print_mom_comparison(mom: dict, currency_sym: str = "$") -> None:
+    """Print a month-over-month category comparison to stdout.
+
+    No-op when fewer than two months of data are available.
+
+    Parameters
+    ----------
+    mom : dict
+        As returned by :func:`build_mom_comparison`.
+    currency_sym : str
+        Currency symbol to prefix amounts.  Defaults to ``"$"``.
+    """
+    if not mom.get("previous_month") or not mom.get("changes"):
+        return
+
+    W    = 54
+    sep  = "═" * W
+    thin = "─" * W
+
+    cur  = mom["current_month"]
+    prev = mom["previous_month"]
+
+    print(f"\n{sep}")
+    print(f" Month-over-Month: {prev}  →  {cur}")
+    print(sep)
+
+    col_w = max((len(c["category"]) for c in mom["changes"]), default=12)
+
+    for entry in mom["changes"]:
+        cat  = entry["category"]
+        cur_amt  = entry["current"]
+        prev_amt = entry["previous"]
+        diff     = entry["diff"]
+        pct      = entry["pct_change"]
+
+        if pct is None:
+            arrow = "  NEW"
+            pct_str = "   n/a"
+        elif diff > 0:
+            arrow = "  ↑"
+            pct_str = f"+{pct:5.1f}%"
+        elif diff < 0:
+            arrow = "  ↓"
+            pct_str = f"{pct:5.1f}%"
+        else:
+            arrow = "   ="
+            pct_str = "  0.0%"
+
+        print(
+            f"  {cat:<{col_w}}  {currency_sym}{prev_amt:>8,.2f} → "
+            f"{currency_sym}{cur_amt:>8,.2f}  {pct_str}{arrow}"
+        )
+
+    print(f"{sep}\n")
+
+
+# ---------------------------------------------------------------------------
+# 7. JSON serialisation
 # ---------------------------------------------------------------------------
 
 def to_json(summary: dict) -> str:

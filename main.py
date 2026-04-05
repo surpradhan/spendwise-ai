@@ -58,7 +58,7 @@ from scripts.ml_classifier import (
     save_model,
     train_model,
 )
-from scripts.terminal_output import build_summary, currency_label, print_summary, print_recurring, print_budget_alerts, print_anomaly_report, to_json
+from scripts.terminal_output import build_summary, build_mom_comparison, currency_label, print_summary, print_mom_comparison, print_recurring, print_budget_alerts, print_anomaly_report, to_json
 from scripts.recurring import detect_recurring
 from scripts.budget import load_budgets, save_budgets, evaluate_budgets
 
@@ -207,6 +207,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "'sum groceries last 3 months', 'search amazon'."
         ),
     )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        dest="summary_only",
+        help=(
+            "Print only the spending summary and skip recurring detection, "
+            "budget alerts, anomaly detection, NL queries, and dashboard/PDF export. "
+            "Useful for a quick terminal overview."
+        ),
+    )
 
     return parser
 
@@ -312,11 +322,19 @@ def run(args: argparse.Namespace) -> None:
         save_budgets(budgets, budgets_path)
         print(f"  ✓ Budgets updated → '{budgets_path}'")
 
-    # ── 7. Build summary + detect recurring ───────────────────────────────
-    summary       = build_summary(df)
+    summary_only = getattr(args, "summary_only", False)
+
+    # ── 7. Build summary (always) + optional downstream analysis ─────────
+    summary = build_summary(df)
+    cur_sym = currency_label(summary.get("currencies", ["USD"])[0])
+
+    if summary_only:
+        print_summary(summary)
+        return
+
+    mom           = build_mom_comparison(df)
     recurring_df  = detect_recurring(df)
     budget_alerts = evaluate_budgets(summary, budgets)
-    cur_sym       = currency_label(summary.get("currencies", ["USD"])[0])
 
     # ── 8. (Optional) Anomaly detection — computed once here ─────────────
     anomaly_df = None
@@ -331,11 +349,13 @@ def run(args: argparse.Namespace) -> None:
         payload = json.loads(to_json(summary))
         payload["recurring_transactions"] = recurring_df.to_dict(orient="records")
         payload["budget_alerts"] = budget_alerts
+        payload["mom_comparison"] = mom
         if anomaly_df is not None:
             payload["anomalies"] = anomaly_df.to_dict(orient="records")
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print_summary(summary)
+        print_mom_comparison(mom, currency_sym=cur_sym)
         print_recurring(recurring_df, currency_sym=cur_sym)
         print_budget_alerts(budget_alerts, currency_sym=cur_sym)
         if anomaly_df is not None:

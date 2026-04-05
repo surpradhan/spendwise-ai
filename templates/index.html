@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpendWise AI</title>
+  <style>
+    :root {
+      --blue:   #4361EE;
+      --indigo: #3A0CA3;
+      --purple: #7209B7;
+      --pink:   #F72585;
+      --cyan:   #4CC9F0;
+      --bg:     #0f1117;
+      --surface:#1a1d27;
+      --card:   #21253a;
+      --border: #2e3350;
+      --text:   #e8eaf6;
+      --muted:  #8892b0;
+      --green:  #90BE6D;
+      --orange: #F3722C;
+      --red:    #F72585;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    header .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    header .badge {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: rgba(67,97,238,0.15);
+      color: var(--blue);
+      border: 1px solid rgba(67,97,238,0.3);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    /* ── Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── Upload ── */
+    #upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 48px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 32px;
+    }
+    #upload-zone:hover, #upload-zone.drag-over {
+      border-color: var(--blue);
+      background: rgba(67,97,238,0.05);
+    }
+    #upload-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    #upload-zone h2 { font-size: 1.1rem; margin-bottom: 6px; }
+    #upload-zone p  { font-size: 0.85rem; color: var(--muted); }
+    #file-input { display: none; }
+    .btn {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--blue);
+      color: var(--blue);
+    }
+
+    /* ── Spinner ── */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    /* ── Summary cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .card .value { font-size: 1.6rem; font-weight: 700; }
+    .card.income .value  { color: var(--green); }
+    .card.expense .value { color: var(--red); }
+    .card.net .value     { color: var(--cyan); }
+    .card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Two-column grid ── */
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .panel h3 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── Category bars ── */
+    .cat-row { margin-bottom: 12px; }
+    .cat-row .cat-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+    .cat-row .cat-label span:last-child { color: var(--muted); }
+    .bar-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      transition: width .5s ease;
+    }
+
+    /* ── Budget alerts ── */
+    .alert-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 0.83rem;
+    }
+    .alert-row .cat-name { flex: 1; }
+    .alert-row .pct { font-weight: 600; min-width: 44px; text-align: right; }
+    .status-ok       { color: var(--green); }
+    .status-warn     { color: var(--orange); }
+    .status-exceeded { color: var(--red); }
+
+    /* ── Recurring table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: 0 0 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(46,51,80,0.5);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .freq-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(67,97,238,0.15);
+      color: var(--blue);
+    }
+
+    /* ── NL Query ── */
+    #query-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+    #query-section h3 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .query-row {
+      display: flex;
+      gap: 10px;
+    }
+    #query-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #query-input:focus { border-color: var(--blue); }
+    #query-input::placeholder { color: var(--muted); }
+    #query-result {
+      margin-top: 14px;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 0.83rem;
+      white-space: pre-wrap;
+      font-family: "SF Mono", "Fira Code", monospace;
+      color: var(--cyan);
+      display: none;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .chip {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .chip:hover { border-color: var(--blue); color: var(--text); }
+
+    /* ── Dashboard link ── */
+    #dashboard-bar {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    /* ── Period tag ── */
+    .period {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    /* ── Empty state ── */
+    .empty { color: var(--muted); font-size: 0.83rem; font-style: italic; }
+
+    /* ── Error toast ── */
+    #error-toast {
+      display: none;
+      background: rgba(247,37,133,0.12);
+      border: 1px solid var(--red);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 680px) {
+      .cards { grid-template-columns: 1fr; }
+      .grid2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">💸</div>
+  <h1>SpendWise AI</h1>
+  <span class="badge">Local · Private</span>
+</header>
+
+<main>
+  <!-- Upload zone -->
+  <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+    <div class="icon">📂</div>
+    <h2>Drop your bank export here</h2>
+    <p>Supports CSV and XLSX — stays on your machine</p>
+    <button class="btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+      Choose file
+    </button>
+    <input type="file" id="file-input" accept=".csv,.xlsx,.xls" />
+  </div>
+
+  <!-- Error -->
+  <div id="error-toast"></div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Analysing your transactions…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Period -->
+    <p class="period" id="period-label"></p>
+
+    <!-- Summary cards -->
+    <div class="cards">
+      <div class="card income">
+        <div class="label">Total Income</div>
+        <div class="value" id="total-income">—</div>
+      </div>
+      <div class="card expense">
+        <div class="label">Total Expenses</div>
+        <div class="value" id="total-expenses">—</div>
+      </div>
+      <div class="card net">
+        <div class="label">Net</div>
+        <div class="value" id="net">—</div>
+        <div class="sub" id="tx-count"></div>
+      </div>
+    </div>
+
+    <!-- Category breakdown + Budget alerts -->
+    <div class="grid2">
+      <div class="panel">
+        <h3>Spending by Category</h3>
+        <div id="categories-list"></div>
+      </div>
+      <div class="panel">
+        <h3>Budget Alerts</h3>
+        <div id="budget-list"></div>
+      </div>
+    </div>
+
+    <!-- Recurring transactions -->
+    <div class="panel" style="margin-bottom:24px">
+      <h3>Recurring Transactions</h3>
+      <div id="recurring-list"></div>
+    </div>
+
+    <!-- NL Query -->
+    <div id="query-section">
+      <h3>Ask a question</h3>
+      <div class="query-row">
+        <input id="query-input" type="text" placeholder='e.g. "top 5 groceries" or "monthly food & drink"' />
+        <button class="btn" id="query-btn" onclick="runQuery()">Ask</button>
+      </div>
+      <div class="chips" id="example-chips"></div>
+      <pre id="query-result"></pre>
+    </div>
+
+    <!-- Open dashboard -->
+    <div id="dashboard-bar">
+      <a href="/dashboard" target="_blank">
+        <button class="btn btn-outline">Open Full Plotly Dashboard ↗</button>
+      </a>
+    </div>
+
+  </div><!-- /results -->
+</main>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let _currSym = "$";
+  let _categories = [];
+
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  const zone = document.getElementById("upload-zone");
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("drag-over"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+  zone.addEventListener("drop", e => {
+    e.preventDefault();
+    zone.classList.remove("drag-over");
+    const f = e.dataTransfer.files[0];
+    if (f) processFile(f);
+  });
+  document.getElementById("file-input").addEventListener("change", e => {
+    if (e.target.files[0]) processFile(e.target.files[0]);
+  });
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  async function processFile(file) {
+    showError("");
+    document.getElementById("upload-zone").style.display = "none";
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("results").style.display = "none";
+
+    const form = new FormData();
+    form.append("file", file);
+
+    try {
+      const res = await fetch("/upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload failed");
+      renderResults(data);
+    } catch (err) {
+      showError(err.message);
+      document.getElementById("upload-zone").style.display = "block";
+    } finally {
+      document.getElementById("loading").style.display = "none";
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  function fmt(val, sym) {
+    return `${sym}${Math.abs(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  function renderResults(data) {
+    const s = data.summary;
+    _currSym = data.currency_sym || "$";
+
+    // Period
+    document.getElementById("period-label").textContent =
+      `📅 ${s.period_start}  →  ${s.period_end}   ·   ${data.filename}`;
+
+    // Summary cards
+    document.getElementById("total-income").textContent   = fmt(s.total_income, _currSym);
+    document.getElementById("total-expenses").textContent = fmt(s.total_expenses, _currSym);
+    document.getElementById("net").textContent            = fmt(s.net, _currSym);
+    document.getElementById("tx-count").textContent       =
+      `${s.uncategorized_count} uncategorized`;
+
+    // Categories
+    const cats = s.category_totals;
+    _categories = Object.keys(cats);
+    const maxVal = Math.max(...Object.values(cats));
+    const catEl = document.getElementById("categories-list");
+    catEl.innerHTML = _categories.map(cat => {
+      const pct = maxVal > 0 ? (cats[cat] / maxVal * 100).toFixed(1) : 0;
+      return `
+        <div class="cat-row">
+          <div class="cat-label">
+            <span>${cat}</span>
+            <span>${fmt(cats[cat], _currSym)}</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+    }).join("") || '<p class="empty">No categories found.</p>';
+
+    // Budget alerts
+    const budgetEl = document.getElementById("budget-list");
+    if (!data.budget_alerts || data.budget_alerts.length === 0) {
+      budgetEl.innerHTML = '<p class="empty">No budgets configured. Run with --set-budget to add limits.</p>';
+    } else {
+      budgetEl.innerHTML = data.budget_alerts.map(a => {
+        const cls = a.status === "EXCEEDED" ? "status-exceeded"
+                  : a.status === "APPROACHING" ? "status-warn"
+                  : "status-ok";
+        const icon = a.status === "EXCEEDED" ? "✗" : a.status === "APPROACHING" ? "⚠" : "✓";
+        return `
+          <div class="alert-row">
+            <span class="${cls}">${icon}</span>
+            <span class="cat-name">${a.category}</span>
+            <span style="color:var(--muted);font-size:0.75rem">
+              ${fmt(a.monthly_avg, _currSym)} / ${fmt(a.budget, _currSym)}
+            </span>
+            <span class="pct ${cls}">${(a.pct_used * 100).toFixed(0)}%</span>
+          </div>`;
+      }).join("");
+    }
+
+    // Recurring
+    const recEl = document.getElementById("recurring-list");
+    if (!data.recurring || data.recurring.length === 0) {
+      recEl.innerHTML = '<p class="empty">No recurring transactions detected.</p>';
+    } else {
+      recEl.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Avg Amount</th>
+              <th>Frequency</th>
+              <th>Occurrences</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.recurring.map(r => `
+              <tr>
+                <td>${r.Description}</td>
+                <td style="color:var(--muted)">${r.Category}</td>
+                <td>${fmt(Math.abs(r.Avg_Amount), _currSym)}</td>
+                <td><span class="freq-badge">${r.Frequency}</span></td>
+                <td style="color:var(--muted)">${r.Occurrences}×</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+
+    // Example query chips
+    const examples = [
+      "categories",
+      "top 5",
+      `monthly ${_categories[0] || "groceries"}`.toLowerCase(),
+      `sum ${_categories[1] || "transport"}`.toLowerCase(),
+      "search amazon",
+    ];
+    document.getElementById("example-chips").innerHTML = examples
+      .map(e => `<span class="chip" onclick="setQuery('${e}')">${e}</span>`)
+      .join("");
+
+    document.getElementById("results").style.display = "block";
+  }
+
+  // ── NL Query ───────────────────────────────────────────────────────────────
+  function setQuery(q) {
+    document.getElementById("query-input").value = q;
+    runQuery();
+  }
+
+  document.getElementById("query-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") runQuery();
+  });
+
+  async function runQuery() {
+    const q = document.getElementById("query-input").value.trim();
+    if (!q) return;
+
+    const btn = document.getElementById("query-btn");
+    btn.disabled = true;
+    btn.textContent = "…";
+
+    const resultEl = document.getElementById("query-result");
+    resultEl.style.display = "none";
+
+    try {
+      const res  = await fetch("/query", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ query: q }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Query failed");
+      resultEl.textContent = data.result;
+      resultEl.style.display = "block";
+    } catch (err) {
+      resultEl.textContent = `Error: ${err.message}`;
+      resultEl.style.display = "block";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Ask";
+    }
+  }
+
+  // ── Error helper ───────────────────────────────────────────────────────────
+  function showError(msg) {
+    const el = document.getElementById("error-toast");
+    if (msg) {
+      el.textContent = `⚠ ${msg}`;
+      el.style.display = "block";
+    } else {
+      el.style.display = "none";
+    }
+  }
+</script>
+</body>
+</html>

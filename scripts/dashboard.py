@@ -639,6 +639,74 @@ def build_anomaly_chart(
 
 
 # ---------------------------------------------------------------------------
+# Month-over-month comparison chart
+# ---------------------------------------------------------------------------
+
+def build_mom_chart(df: pd.DataFrame) -> go.Figure:
+    """Grouped bar chart comparing per-category spend for the two most recent months.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must have columns: Date, Amount, Category.
+
+    Returns
+    -------
+    go.Figure
+        Empty figure with an annotation when fewer than two months of data exist.
+    """
+    from scripts.terminal_output import build_mom_comparison
+
+    mom   = build_mom_comparison(df)
+    label = _get_currency_label(df)
+
+    if not mom["previous_month"] or not mom["changes"]:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Not enough data for month-over-month comparison (need ≥ 2 months)",
+            xref="paper", yref="paper", x=0.5, y=0.5,
+            showarrow=False, font=dict(size=14, color="#888"),
+        )
+        fig.update_layout(title="Month-over-Month Comparison", plot_bgcolor="white")
+        return fig
+
+    categories = [c["category"] for c in mom["changes"]]
+    prev_vals  = [c["previous"] for c in mom["changes"]]
+    cur_vals   = [c["current"]  for c in mom["changes"]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name=mom["previous_month"],
+        x=categories,
+        y=prev_vals,
+        marker_color="#4895EF",
+        hovertemplate=f"{mom['previous_month']}: {label}%{{y:,.2f}}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name=mom["current_month"],
+        x=categories,
+        y=cur_vals,
+        marker_color="#F72585",
+        hovertemplate=f"{mom['current_month']}: {label}%{{y:,.2f}}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        title=dict(
+            text=f"Month-over-Month: {mom['previous_month']} vs {mom['current_month']}",
+            font=dict(size=16),
+        ),
+        barmode="group",
+        xaxis=dict(title="Category", tickangle=-30),
+        yaxis=dict(title=f"Spend ({label})", showgrid=True, gridcolor="#f0f0f0"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(t=80, b=120, l=80, r=20),
+        plot_bgcolor="white",
+        colorway=_PALETTE,
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Dashboard assembly & export
 # ---------------------------------------------------------------------------
 
@@ -673,6 +741,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     table     = build_uncategorized_table(df)
     recurring = build_recurring_table(df)
     anomaly   = build_anomaly_chart(df, anomaly_df=_anomaly_df)
+    mom       = build_mom_chart(df)
 
     dates = pd.to_datetime(df["Date"])
     start = dates.min().strftime("%Y-%m-%d")
@@ -708,6 +777,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     table_div     = _div(table)
     recurring_div = _div(recurring)
     anomaly_div   = _div(anomaly)
+    mom_div       = _div(mom)
 
     # Optional budget card (7th card) — only when budgets provided and non-empty
     budget_card_html = ""
@@ -811,6 +881,7 @@ def build_dashboard(df: pd.DataFrame, budgets: dict | None = None) -> str:
     <div class="card full-width">{table_div}</div>
     <div class="card full-width">{recurring_div}</div>
     <div class="card full-width">{anomaly_div}</div>
+    <div class="card full-width">{mom_div}</div>
 {budget_card_html}
   </div>
 
