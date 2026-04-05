@@ -290,10 +290,15 @@
     }
     .chip:hover { border-color: var(--blue); color: var(--text); }
 
-    /* ── Dashboard link ── */
+    /* ── Action bar ── */
     #dashboard-bar {
-      text-align: center;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
       margin-bottom: 32px;
+    }
+    .btn-red {
+      background: var(--red);
     }
 
     /* ── Period tag ── */
@@ -405,11 +410,14 @@
       <pre id="query-result"></pre>
     </div>
 
-    <!-- Open dashboard -->
+    <!-- Action bar -->
     <div id="dashboard-bar">
       <a href="/dashboard" target="_blank">
-        <button class="btn btn-outline">Open Full Plotly Dashboard ↗</button>
+        <button class="btn btn-outline">Open Full Dashboard ↗</button>
       </a>
+      <button class="btn btn-outline" id="pdf-btn" onclick="downloadPDF()">
+        Download PDF Report
+      </button>
     </div>
 
   </div><!-- /results -->
@@ -599,6 +607,34 @@
     } finally {
       btn.disabled = false;
       btn.textContent = "Ask";
+    }
+  }
+
+  // ── PDF download ──────────────────────────────────────────────────────────
+  async function downloadPDF() {
+    const btn = document.getElementById("pdf-btn");
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+
+    try {
+      const res = await fetch("/pdf");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "PDF generation failed");
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = res.headers.get("content-disposition")
+                      ?.match(/filename="?([^"]+)"?/)?.[1] || "report.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Download PDF Report";
     }
   }
 

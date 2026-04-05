@@ -23,7 +23,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 # ── Repo root on sys.path so scripts.* imports work ──────────────────────────
 _REPO_ROOT = Path(__file__).parent
@@ -137,6 +137,29 @@ async def query(request: Request) -> JSONResponse:
         raise HTTPException(422, str(exc)) from exc
 
     return JSONResponse({"result": result})
+
+
+@app.get("/pdf")
+async def pdf() -> FileResponse:
+    """Generate and return the PDF report for the uploaded file as a download."""
+    if _state["df"] is None:
+        raise HTTPException(400, "No file uploaded yet.")
+
+    from scripts.dashboard import export_pdf
+    _EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    budgets = load_budgets(_BUDGETS_PATH)
+
+    try:
+        pdf_path = export_pdf(_state["df"], _EXPORTS_DIR, budgets=budgets)
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=pdf_path.name,
+    )
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
