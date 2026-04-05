@@ -345,7 +345,7 @@
       <div class="feature-card">
         <div class="feature-icon">📊</div>
         <h3>Interactive Dashboard</h3>
-        <p>Seven Plotly charts — donut, monthly trend, top merchants, income vs expenses — in a single self-contained HTML file. Works offline.</p>
+        <p>Eight Plotly charts — donut, monthly trend, top merchants, income vs expenses, month-over-month comparison, and more — in a single self-contained HTML file. Works offline.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔁</div>
@@ -375,7 +375,7 @@
       <div class="feature-card">
         <div class="feature-icon">🌐</div>
         <h3>Local Web UI</h3>
-        <p>Run <code>python app.py</code> and open <code>localhost:8000</code>. Upload a file, view your summary, run NL queries, and launch the dashboard — no terminal required.</p>
+        <p>Run <code>python app.py</code> and open <code>localhost:8000</code>. Upload a file, view your summary, run NL queries, launch the dashboard, and download a PDF report — no terminal required.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">⚙️</div>
@@ -438,7 +438,12 @@
       <div><span class="kw">git clone</span> <span class="st">https://github.com/surpradhan/spendwise-ai</span></div>
       <div><span class="kw">pip install</span> -r requirements.txt</div>
       <div>&nbsp;</div>
-      <div><span class="c"># 2. Drop your bank export into data/raw/, then run</span></div>
+      <div><span class="c"># 2. Set up config files from the provided examples (one-time)</span></div>
+      <div><span class="kw">cp</span> config/keywords.example.json config/keywords.json</div>
+      <div><span class="kw">cp</span> config/budgets.example.json config/budgets.json</div>
+      <div><span class="kw">cp</span> config/ml_config.example.json config/ml_config.json</div>
+      <div>&nbsp;</div>
+      <div><span class="c"># 3. Drop your bank export into data/raw/, then run</span></div>
       <div><span class="kw">python</span> main.py --file data/raw/export.csv --dashboard</div>
       <div>&nbsp;</div>
       <div><span class="c"># With PDF report</span></div>
@@ -487,7 +492,7 @@
         <div class="privacy-icon">🎭</div>
         <div>
           <h4>Automatic PII Masking</h4>
-          <p>Card numbers (12–16 digits) are masked to <code>****1234</code> in all outputs — terminal, CSV, and dashboard.</p>
+          <p>Card numbers (12–16 digits) are masked to <code>****1234</code> in all outputs — terminal, CSV, dashboard, and PDF.</p>
         </div>
       </div>
       <div class="privacy-item">
