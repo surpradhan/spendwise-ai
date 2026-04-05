@@ -29,7 +29,9 @@
 
 ```mermaid
 flowchart LR
-    A[/"Bank Export\nCSV / XLSX"/] --> B["Bank Adapter\nHDFC / Generic"]
+    CLI[/"CLI\npython main.py"/] --> B
+    UI[/"Web UI\nlocalhost:8000"/] --> B
+    B["Bank Adapter\nHDFC / Generic"]
     B --> C["Ingest and Normalise\nencoding, dates, PII masking\nCurrency column"]
     C --> D{Classify}
     D -->|keyword pass| E["Keyword Rules"]
@@ -66,6 +68,9 @@ python main.py --file data/raw/export.csv --dashboard
 
 Your dashboard is saved to `exports/dashboard_YYYY-MM-DD_to_YYYY-MM-DD.html` — open it in any browser, no server needed.
 
+**Supported formats:** `.csv`, `.xlsx`, `.xls`
+**Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
+
 ### Web UI (optional)
 
 A local browser interface is available if you prefer not to use the terminal:
@@ -77,9 +82,6 @@ python app.py
 ```
 
 Upload any CSV or XLSX directly from the browser. Results, NL queries, the full Plotly dashboard, and a **PDF download** are all accessible from the same page. All processing stays local — `app.py` is just a thin wrapper around the same pipeline as `main.py`.
-
-**Supported formats:** `.csv`, `.xlsx`, `.xls`
-**Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
 
 ### Agent-based NL Queries (optional)
 
@@ -124,6 +126,9 @@ python main.py --file data/raw/export.csv --set-budget "Groceries:400" "Transpor
 
 # Retrain the ML classifier from your entire labelled history
 python main.py --file data/raw/export.csv --retrain-ml
+
+# Quick summary only — skip recurring, budgets, anomalies, and dashboard
+python main.py --file data/raw/export.csv --summary-only
 
 # Detect unusual transactions (modified z-score per category)
 python main.py --file data/raw/export.csv --anomalies
@@ -181,8 +186,8 @@ After adding new categories, run `--retrain-ml` so the ML model picks them up.
 
 ## Privacy
 
-- **100 % local** — no network calls after install.
-- Card numbers (12–16 digits) are auto-masked to `****1234` in every output — terminal, CSV, and dashboard.
+- **100 % local** — no network calls after install. The Web UI (`app.py`) is a local server; it never sends data anywhere.
+- Card numbers (12–16 digits) are auto-masked to `****1234` in every output — terminal, CSV, dashboard, and PDF.
 - No analytics, telemetry, or logging to external services.
 
 ---
