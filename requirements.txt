@@ -5,3 +5,8 @@ chardet>=5.2.0
 kaleido>=0.2.1
 reportlab>=4.0
 scikit-learn>=1.2
+
+# Optional — required only for the agent-based NL query engine (nl_query_agent.py).
+# Install Ollama separately: https://ollama.com
+# Then pull a tool-calling model: ollama pull llama3.1:8b
+# ollama

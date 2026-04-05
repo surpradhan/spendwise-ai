@@ -17,7 +17,7 @@
 | **Detects recurring charges** | Subscriptions and regular payments flagged without any configuration |
 | **Budget tracking & alerts** | Set monthly limits per category; get warned at 80 % and 100 % |
 | **Anomaly detection** | Flags unusual transactions via modified z-score (median + MAD); per-category with global fallback for singletons |
-| **Natural language queries** | Ask questions in plain English: `show groceries`, `top 5 last 3 months`, `sum food & drink` |
+| **Natural language queries** | Ask questions in plain English: `show groceries`, `top 5 last 3 months`, `sum food & drink`. Agent mode (Ollama) handles open-ended questions beyond the fixed patterns |
 | **Interactive HTML dashboard** | 8 charts — donut, trend, top merchants, income vs expenses, anomaly scatter, and more — fully offline |
 | **Web UI** | Browser-based interface via `app.py` — upload a file, view results, run NL queries, and open the dashboard without touching the terminal |
 | **PDF report** | Multi-page export for archiving or sharing |
@@ -74,6 +74,27 @@ Upload any CSV or XLSX directly from the browser. Results, NL queries, and the f
 **Supported formats:** `.csv`, `.xlsx`, `.xls`
 **Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
 
+### Agent-based NL Queries (optional)
+
+By default `--query` uses a regex engine that handles a fixed set of patterns. Install [Ollama](https://ollama.com) to unlock open-ended questions powered by a local LLM:
+
+```bash
+# 1. Install Ollama — https://ollama.com (one-time, separate from pip)
+
+# 2. Pull a tool-calling model (~4.7 GB, one-time)
+ollama pull llama3.1:8b
+
+# 3. Install the Python client
+pip install ollama
+
+# 4. Run — the agent activates automatically when Ollama is available
+python main.py --file data/raw/export.csv --query "which category am I overspending on vs last month?"
+```
+
+**Fallback:** if Ollama is not running or the model is not pulled, `--query` silently falls back to the regex engine. No configuration needed.
+
+**Compatible models** (must support tool/function calling): `llama3.1:8b` (default), `qwen2.5:7b`, `mistral:7b`
+
 ---
 
 ## Common Commands
@@ -104,6 +125,10 @@ python main.py --file data/raw/export.csv --anomalies
 python main.py --file data/raw/export.csv --query "show groceries"
 python main.py --file data/raw/export.csv --query "top 5 last 3 months"
 python main.py --file data/raw/export.csv --query "categories"
+
+# With Ollama running, open-ended questions work too
+python main.py --file data/raw/export.csv --query "which category am I overspending on vs last month?"
+python main.py --file data/raw/export.csv --query "did I spend more on food or transport in February?"
 ```
 
 ---
@@ -122,7 +147,7 @@ python main.py --file data/raw/export.csv --query "categories"
 | `--no-feedback` | Skip interactive review (for scripting) |
 | `--retrain-ml` | Retrain ML classifier after this run |
 | `--anomalies` | Print anomaly report (unusual transactions flagged by modified z-score) |
-| `--query QUERY` | Run a natural language query and print the result (run `categories` first to see available categories) |
+| `--query QUERY` | Run a natural language query. Uses a local Ollama LLM agent when available; falls back to the regex engine automatically |
 | `--set-budget CAT:AMT` | Set one or more monthly budget limits |
 | `--keywords PATH` | Custom `keywords.json` path |
 | `--budgets PATH` | Custom `budgets.json` path |
@@ -194,7 +219,8 @@ spendwise-ai/
 │   ├── recurring.py           # Recurring transaction detector
 │   ├── budget.py              # Budget targets & alerts
 │   ├── anomaly.py             # Anomaly detection (modified z-score)
-│   ├── nl_query.py            # Natural language query engine
+│   ├── nl_query.py            # Natural language query engine (regex)
+│   ├── nl_query_agent.py      # Agent-based NL query engine (Ollama + tool calling)
 │   ├── dashboard.py           # Plotly HTML + PDF dashboard
 │   └── terminal_output.py     # Terminal & JSON summary
 ├── config/

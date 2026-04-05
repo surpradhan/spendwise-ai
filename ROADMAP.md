@@ -50,6 +50,7 @@ Each adapter is a self-contained file following the documented pattern in `scrip
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Minimal web front-end | ✓ **Shipped** | `app.py` — FastAPI + uvicorn. File upload, summary, NL query, and dashboard all accessible from `http://localhost:8000`. |
+| Agent-based NL query engine | ✓ **Shipped** | `nl_query_agent.py` — Ollama + tool calling. Open-ended questions beyond fixed regex patterns; falls back to regex engine when Ollama is unavailable. |
 | Interactive category review | Pending | Replace CLI prompts with an in-browser table for mapping uncategorised transactions. |
 | Persistent session | Pending | Store processed CSVs and model artefacts between uploads; no database — flat files only. |
 

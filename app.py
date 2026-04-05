@@ -33,7 +33,7 @@ from scripts.budget import evaluate_budgets, load_budgets
 from scripts.classifier import load_keywords, write_processed_csv
 from scripts.ingest import ingest
 from scripts.ml_classifier import classify_all_v2, load_model
-from scripts.nl_query import execute_query
+from scripts.nl_query_agent import execute_query_agent as execute_query
 from scripts.recurring import detect_recurring
 from scripts.terminal_output import build_summary, currency_label
 

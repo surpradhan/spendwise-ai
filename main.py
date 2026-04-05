@@ -361,8 +361,8 @@ def run(args: argparse.Namespace) -> None:
         if anomaly_df is not None:
             print_anomaly_report(anomaly_df, currency_sym=cur_sym)
         if getattr(args, "query", None):
-            from scripts.nl_query import execute_query
-            print(execute_query(args.query, df, currency_sym=cur_sym))
+            from scripts.nl_query_agent import execute_query_agent
+            print(execute_query_agent(args.query, df, currency_sym=cur_sym))
 
     if args.output_json:
         out = Path(args.output_json)
