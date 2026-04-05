@@ -76,7 +76,7 @@ python app.py
 # Open http://localhost:8000
 ```
 
-Upload any CSV or XLSX directly from the browser. Results, NL queries, and the full Plotly dashboard are all accessible from the same page. All processing stays local — `app.py` is just a thin wrapper around the same pipeline as `main.py`.
+Upload any CSV or XLSX directly from the browser. Results, NL queries, the full Plotly dashboard, and a **PDF download** are all accessible from the same page. All processing stays local — `app.py` is just a thin wrapper around the same pipeline as `main.py`.
 
 **Supported formats:** `.csv`, `.xlsx`, `.xls`
 **Required columns:** `Date`, `Description`, `Amount` (or you'll be prompted to map them)
@@ -155,6 +155,7 @@ python main.py --file data/raw/export.csv --query "did I spend more on food or t
 | `--retrain-ml` | Retrain ML classifier after this run |
 | `--anomalies` | Print anomaly report (unusual transactions flagged by modified z-score) |
 | `--query QUERY` | Run a natural language query. Uses a local Ollama LLM agent when available; falls back to the regex engine automatically |
+| `--summary-only` | Print spending summary only; skip recurring, budgets, anomalies, NL query, and dashboard/PDF |
 | `--set-budget CAT:AMT` | Set one or more monthly budget limits |
 | `--keywords PATH` | Custom `keywords.json` path |
 | `--budgets PATH` | Custom `budgets.json` path |
